@@ -1,7 +1,7 @@
 SELECT
-    id,
+	id,
 	trader_id,
-    difference
+	difference
 FROM
     public.trading_data_per_days_test
 WHERE
