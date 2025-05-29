@@ -10,25 +10,26 @@ from psycopg2 import Error
 #     database
 # )
 
-# --- Функція для підключення до бази даних ---
+# --- Data base connection function ---
 def get_db_connection():
     """
-    Встановлює та повертає підключення до бази даних PostgreSQL.
+    Establishes and returns a PostgreSQL database connection.
     """
     connection = None
     try:
         connection = psycopg2.connect(
             user="postgres",
-            password="3113325650", # !!! Ваш пароль
+            password="3113325650",
             host="127.0.0.1",
             port="5432",
             database="trading_data"
         )
-        print(f"Connection is setted successfully \n{connection}")
+        connection.autocommit = False # We'll manage transactions manually for batching
+        print(f"Connection to PostgreSQL successfully established \n{connection}")
         return connection
         
     except (Exception, Error) as error:
-        print(f"Помилка підключення до PostgreSQL: {error}")
+        print(f"Error connecting to PostgreSQL: {error}")
         return None
     
 def db_close_connection(connection):
