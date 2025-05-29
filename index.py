@@ -1,34 +1,50 @@
 import requests
+from requests.exceptions import ConnectionError, Timeout, HTTPError, RequestException
 import psycopg2
 from psycopg2 import Error
 import time
 import random # For random delays
+from sql_functions import (
+    # add_trader_data,
+    get_db_connection,
+    # create_traders_table,
+    # create_trader_metrics_table,
+    # create_trader_performance_table,
+    # insert_trader_link,
+    # insert_trader_metrics,
+    # insert_trader_performance,
+    # db_close_connection
+) # Import SQL functions
+
+from functions_api import (
+    fetch_api_data_with_retries,
+) # Import API functions
 
 # Period is usually fixed for these leaderboards, e.g., 30 Days
 period_days = '180' # Assuming fixed 30 Days based on your previous data
 
 # --- Database Connection Functions (from previous discussions) ---
 
-def get_db_connection():
-    """
-    Establishes and returns a PostgreSQL database connection.
-    """
-    connection = None
-    try:
-        connection = psycopg2.connect(
-            user="postgres",
-            password="3113325650", # !!! REPLACE WITH YOUR ACTUAL PASSWORD !!!
-            host="127.0.0.1",
-            port="5432",
-            database="trading_data" # Ensure this database exists
-        )
-        connection.autocommit = False # We'll manage transactions manually for batching
-        print("Connection to PostgreSQL successfully established.")
-        return connection
+# def get_db_connection():
+#     """
+#     Establishes and returns a PostgreSQL database connection.
+#     """
+#     connection = None
+#     try:
+#         connection = psycopg2.connect(
+#             user="postgres",
+#             password="3113325650", # !!! REPLACE WITH YOUR ACTUAL PASSWORD !!!
+#             host="127.0.0.1",
+#             port="5432",
+#             database="trading_data" # Ensure this database exists
+#         )
+#         connection.autocommit = False # We'll manage transactions manually for batching
+#         print("Connection to PostgreSQL successfully established.")
+#         return connection
         
-    except (Exception, Error) as error:
-        print(f"Error connecting to PostgreSQL: {error}")
-        return None
+#     except (Exception, Error) as error:
+#         print(f"Error connecting to PostgreSQL: {error}")
+#         return None
 
 def db_close_connection(connection):
     """
@@ -376,7 +392,7 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
 if __name__ == "__main__":
     API_URL = "https://www.binance.com/bapi/futures/v1/friendly/future/copy-trade/home-page/query-list"
     
-    TOTAL_ITEMS = 5999
+    TOTAL_ITEMS = 60
     PAGE_SIZE = 18    
     
     TOTAL_PAGES = (TOTAL_ITEMS + PAGE_SIZE - 1) // PAGE_SIZE
@@ -429,14 +445,13 @@ if __name__ == "__main__":
                 'Referer': 'https://www.binance.com/copy-trading/leaderboard'
             }
 
-            try:
-                response = requests.post(API_URL, headers=headers, json=payload, timeout=15)
-                response.raise_for_status()
 
-                json_response_data = response.json()
-                # data = json_response_data.get('data')
-                # total = data.get('total')
-                # print(json_response_data)
+            json_response_data = fetch_api_data_with_retries(API_URL, headers, payload, page_num, 5, 10)
+            if json_response_data is None:
+                print(f"Припиняю пагінацію, оскільки не вдалося отримати дані для сторінки {page_num}.")
+                break # Виходимо з головного циклу пагінації
+
+            try:
                 traders_on_page = parse_api_response_for_traders(json_response_data)
                 
                 print(f"Received {len(traders_on_page)} traders on page {page_num}.")
@@ -477,13 +492,13 @@ if __name__ == "__main__":
                         clean_and_convert_numeric(trader_data.get('mdd_per_period'), float),
                         clean_and_convert_numeric(trader_data.get('win_rate_per_period'), float)                        
                     )
-                    # print(performance_to_add)
+                    
                     trader_performance_batch.append(performance_to_add)
 
                     chart_items_batch = []
                     chart_items = trader_data.get('chartItems')
                     for chart_item in chart_items:
-                        # print(chart_item.get('value'))
+                        
                         chart_item_to_add = (
                             trader_data.get('trader_id'),
                             chart_item.get('value'),
