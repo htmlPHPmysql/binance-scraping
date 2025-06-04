@@ -10,7 +10,6 @@ from psycopg2 import Error
 #     database
 # )
 
-# --- Data base connection function ---
 def get_db_connection():
     """
     Establishes and returns a PostgreSQL database connection.
@@ -25,7 +24,6 @@ def get_db_connection():
             database="trading_data"
         )
         connection.autocommit = False # We'll manage transactions manually for batching
-        print(f"Connection to PostgreSQL successfully established \n{connection}")
         return connection
         
     except (Exception, Error) as error:
@@ -33,113 +31,85 @@ def get_db_connection():
         return None
     
 def db_close_connection(connection):
+    """
+    Closes the PostgreSQL database connection.
+    """
     try:
-        connection.close()
-        print("Connection to PostgreSQL successfully closed")
+        if connection:
+            connection.close()
+            print("Connection to PostgreSQL successfully closed")
+        else:
+            print("Connection to PostgreSQL does NOT exist")
     except (Exception, Error) as error:
-        print(f"Помилка відключення від PostgreSQL: {error}")
+        print(f"Error disconnecting from PostgreSQL: {error}")
 
-# --- Функція для створення таблиці ---
-def create_traders_table(connection):
+def create_table(connection, table_name, columns):
     """
-    
+    Check if the table in the database exists and creates it if NOT exists.
+    Allows dynamic definition of table name and columns.
+
+    Parameters:
+    connection (psycopg2.connection): Connection object to PostgreSQL database.
+    table_name (str): Name of the table to check/create.
+    columns (list): A list of dictionaries, where each dictionary defines a column.
+                    Example: [{'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
+                              {'name': 'trader_id', 'type': 'VARCHAR(255) NOT NULL'}]
     """
-    cursor = None
     try:
-        cursor = connection.cursor()
-
-        create_table_query = """
-            CREATE TABLE IF NOT EXISTS trader_links_table (
-                id SERIAL PRIMARY KEY, -- New auto-incrementing sequential number
-                trader_id VARCHAR(255) UNIQUE NOT NULL, -- Now unique, but not the primary key
-                trader_name VARCHAR(255) NOT NULL,
-                profile_url TEXT NOT NULL,
-                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        with connection.cursor() as cur:
+            # Створюємо рядки для визначення стовпців
+            column_definitions = []
+            for col in columns:
+                col_name = col['name']
+                col_type = col['type']
+                column_definitions.append(f"{col_name} {col_type}")
+            
+            # Об'єднуємо всі визначення стовпців комами
+            columns_sql = ",\n                ".join(column_definitions)
+            
+            create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                {columns_sql}
             );
             """
-        cursor.execute(create_table_query)
-        connection.commit() # Зберігаємо зміни (створення таблиці)
-        print("Table 'create_traders_table' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_metrics_table': {error}")
-    finally:
-        if cursor:
-            cursor.close()
+            
+            cur.execute(create_table_query)
+            connection.commit()
+            print(f"Table '{table_name}' checked/created successfully")
 
-    # print("Таблиця 'traders_binance' перевірена/створена успішно.")
+    except Error as e:
+        print(f"Помилка при перевірці або створенні таблиці '{table_name}': {e}")
+        connection.rollback()
 
-def create_trader_metrics_table(connection):
+def create_trading_data_per_days(connection, table_name="trading_data_per_days"):
     """
-    Creates the 'trader_metrics_table' table in the database if it doesn't already exist.
-    This table stores various metrics for trader profiles, allowing for multiple records
-    per trader_id (e.g., historical snapshots).
+    Check if the table in the data base exists and creats it if NOT exists
+
+    Parameters:
+    conconnectionn (psycopg2.connection): Connection object to date base PostgreSQL.
+    table_name (str): Name of the table to check.
     """
-    cursor = None
     try:
-        cursor = connection.cursor()
+        with connection.cursor() as cur:
+            
+            create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id SERIAL PRIMARY KEY,
+                trader_id VARCHAR(255) NOT NULL, -- Додаємо trader_id, який може бути неунікальним
+                value NUMERIC(10, 4) NOT NULL, -- NUMERIC(precision, scale) для точності
+                data_type VARCHAR(50) NOT NULL,
+                date_time BIGINT NOT NULL,
+                difference NUMERIC(10, 4)
+            );
+            """
+            cur.execute(create_table_query)
+            connection.commit()
+            print(f"Table '{table_name}' checked/created successfully")
 
-        # SQL query to create the table with specified constraints:
-        # id as SERIAL PRIMARY KEY: Unique auto-incrementing ID for each metrics record.
-        # trader_id: Not unique, allows multiple entries for the same trader.
-        # recorded_at: Timestamp to record when the metrics were collected.
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS trader_metrics_table (
-            id SERIAL PRIMARY KEY,
-            trader_id VARCHAR(255) NOT NULL, -- trader_id can be repeated as requested
-            active_followers INTEGER,
-            total_spots INTEGER,
-            api_availability VARCHAR(255),
-            aum_value NUMERIC, -- Use NUMERIC for decimal numbers like AUM and Sharpe Ratio
-            sharpe_ratio_value NUMERIC,
-            mock_status VARCHAR(255),
-            copy_capability VARCHAR(255),
-            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        cursor.execute(create_table_query)
-        connection.commit()
-        print("Table 'trader_metrics_table' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_metrics_table': {error}")
-    finally:
-        if cursor:
-            cursor.close()
-
-def create_trader_performance_table(connection):
-    """
-    Creates the 'trader_performance_metrics' table in the database if it doesn't already exist.
-    This table stores specific performance metrics for traders, allowing for multiple records
-    per trader_id (e.g., historical snapshots for different periods).
-    """
-    cursor = None
-    try:
-        cursor = connection.cursor()
-
-        # SQL query to create the table with specified constraints:
-        # id as SERIAL PRIMARY KEY: Unique auto-incrementing ID for each performance record.
-        # trader_id: Not unique, allows multiple entries for the same trader for different periods/snapshots.
-        # recorded_at: Timestamp to record when these performance metrics were collected.
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS trader_performance_metrics (
-            id SERIAL PRIMARY KEY,
-            trader_id VARCHAR(255) NOT NULL,
-            period_days INTEGER,
-            pnl_value_sign VARCHAR(1),
-            pnl_per_period NUMERIC,
-            roi_value_sign VARCHAR(1),
-            roi_per_period NUMERIC,
-            mdd_per_period NUMERIC,
-            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        cursor.execute(create_table_query)
-        connection.commit()
-        print("Table 'trader_performance_metrics' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_performance_metrics': {error}")
-    finally:
-        if cursor:
-            cursor.close()
+    except Error as e:
+        print(f"Помилка при перевірці або створенні таблиці '{table_name}': {e}")
+        # Важливо: Якщо виникла помилка, відкотіть транзакцію
+        connection.rollback()
 
 # --- Функція для додавання даних ---
 # def add_trader_data(connection, trader_id, profile_url):
@@ -173,177 +143,106 @@ def create_trader_performance_table(connection):
 #         else:
 #             print(f"Помилка при додаванні даних: {error}")
 
-#     finally:
-#         if cursor:
-#             cursor.close()
 
-def insert_trader_link(connection, trader_id: str, trader_name: str, profile_url: str):
-    """
-    Inserts a new trader link record into the 'trader_links_table'.
-    If a record with the same trader_id already exists, it will be updated.
-    The 'id' (sequential number) is auto-generated by the database.
-    """
+def insert_multiple_trader_links_batch(connection, table_name, data_list: list[tuple]):
     cursor = None
     try:
-        if connection is None:
-            print("Could not get database connection to insert data. Exiting.")
-            return
-
+        if not data_list: return
         cursor = connection.cursor()
-        insert_query = """
-        INSERT INTO trader_links_table (trader_id, trader_name, profile_url)
+        insert_query = f"""
+        INSERT INTO {table_name} (trader_id, trader_name, avatar_url)
         VALUES (%s, %s, %s)
         ON CONFLICT (trader_id) DO UPDATE SET
             trader_name = EXCLUDED.trader_name,
-            profile_url = EXCLUDED.profile_url,
-            added_at = CURRENT_TIMESTAMP;
+            avatar_url = EXCLUDED.avatar_url,
+            recorded_at = CURRENT_TIMESTAMP;
         """
-        cursor.execute(insert_query, (trader_id, trader_name, profile_url))
+        cursor.executemany(insert_query, data_list)
         connection.commit()
-        # print(f"Trader link for '{trader_name}' (ID: {trader_id}) added/updated successfully.")
+        print(f"Successfully added/updated {len(data_list)} trader links in batch.")
     except (Exception, Error) as error:
-        print(f"Error inserting/updating trader link for '{trader_name}': {error}")
-        if connection:
-            connection.rollback()
+        print(f"Error inserting/updating trader links in batch: {error}")
+        if connection: connection.rollback()
     finally:
-        if cursor:
-            cursor.close()
-            print(f"{cursor} is closed")
+        if cursor: cursor.close()
 
-def insert_trader_metrics(connection, metrics_data: dict):
-    """
-    Inserts a new record of trader metrics into the 'trader_metrics_table'.
-    New records are always inserted as trader_id is not unique in this table (it captures snapshots).
-    """
-    cursor = None
+def insert_multiple_batch(connection, table_name, table_columns, data_list: list[tuple]):
     try:
-        if connection is None:
-            print("Could not get database connection to insert data. Exiting.")
-            return
-
-        cursor = connection.cursor()
-        insert_query = """
-        INSERT INTO trader_metrics_table (
-            trader_id, active_followers, total_spots, api_availability, 
-            aum_value, sharpe_ratio_value, mock_status, copy_capability
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        
-        # Prepare data for insertion, handling potential 'N/A' or missing keys
-        # Convert numeric values to appropriate types, default to None if 'N/A' or missing
-        trader_id_val = metrics_data.get('trader_id')
-        active_followers_val = int(metrics_data.get('active_followers')) if str(metrics_data.get('active_followers')).isdigit() else None
-        total_spots_val = int(metrics_data.get('total_spots')) if str(metrics_data.get('total_spots')).isdigit() else None
-        api_availability_val = metrics_data.get('api_availability')
-        
-        # Clean and convert AUM value
-        aum_raw = metrics_data.get('aum_value')
-        aum_value_val = None
-        if isinstance(aum_raw, str):
-            cleaned_aum = aum_raw.replace(',', '')
-            if cleaned_aum.replace('.', '', 1).isdigit(): # Check if it's a valid number after cleaning
-                aum_value_val = float(cleaned_aum)
-
-        # Clean and convert Sharpe Ratio value
-        sharpe_raw = metrics_data.get('sharpe_ratio_value')
-        sharpe_ratio_value_val = None
-        if isinstance(sharpe_raw, str):
-            cleaned_sharpe = sharpe_raw.replace('–', '').strip() # Remove the dash if present
-            if cleaned_sharpe and cleaned_sharpe.replace('.', '', 1).isdigit():
-                sharpe_ratio_value_val = float(cleaned_sharpe)
-        
-        mock_status_val = metrics_data.get('mock_status')
-        copy_capability_val = metrics_data.get('copy_capability')
-
-        data_to_insert = (
-            trader_id_val,
-            active_followers_val,
-            total_spots_val,
-            api_availability_val,
-            aum_value_val,
-            sharpe_ratio_value_val,
-            mock_status_val,
-            copy_capability_val
-        )
-
-        cursor.execute(insert_query, data_to_insert)
-        connection.commit()
-        # print(f"Metrics for trader '{trader_id_val}' recorded successfully.")
-
-    except (Exception, Error) as error:
-        print(f"Error inserting metrics for trader '{metrics_data.get('trader_id')}': {error}")
-        if connection:
-            connection.rollback()
-    finally:
-        if cursor:
-            cursor.close()
+        if not data_list: return
+        with connection.cursor() as cur:
             
-def insert_trader_performance(connection, performance_data: dict):
-    """
-    Inserts a new record of trader performance metrics into the 'trader_performance_metrics' table.
-    New records are always inserted as trader_id is not unique in this table (it captures snapshots).
-    """
-    cursor = None
-    try:
-        if connection is None:
-            print("Could not get database connection to insert data. Exiting.")
-            return
+            # 1. Відфільтруйте стовпці, щоб виключити 'id' та 'recorded_at' (якщо воно також генерується автоматично)
+            # Зверніть увагу: для `recorded_at` з `DEFAULT CURRENT_TIMESTAMP` ви також не повинні його вказувати явно.
+            # Тому ми відфільтруємо обидва стовпці.
+            columns_to_insert_obj = [
+                col for col in table_columns
+                if col["name"] not in ["id", "recorded_at"]
+            ]
 
+            # 2. Отримайте тільки назви стовпців для INSERT частини запиту
+            column_names = [col["name"] for col in columns_to_insert_obj]
+            columns_str = ", ".join(column_names)
+
+            # 3. Згенеруйте плейсхолдери (%s) для динамічної вставки
+            placeholders = ", ".join(['%s'] * len(column_names))
+
+            insert_query = f"""
+                INSERT INTO {table_name} (
+                    {columns_str}
+                ) VALUES ({placeholders});
+                """
+            cur.executemany(insert_query, data_list)
+            connection.commit()
+            print(f"Successfully inserted {len(data_list)} trader records in batch in the table {table_name}")
+    except (Exception, Error) as error:
+        print(f"Error inserting trader metrics in batch: {error}")
+        if connection: connection.rollback()
+
+
+# --- Batch Data Insertion Functions (as defined previously) ---            
+# def insert_multiple_trader_performance_metrics_batch(connection, data_list: list[tuple]):
+#     cursor = None
+#     try:
+#         if not data_list: return
+#         cursor = connection.cursor()
+#         insert_query = """
+#         INSERT INTO trader_performance (
+#             trader_id, period_days, pnl_per_period,
+#             roi_per_period, mdd_per_period, win_rate_per_period
+#         ) VALUES (%s, %s, %s, %s, %s, %s);
+#         """
+#         cursor.executemany(insert_query, data_list)
+#         connection.commit()
+#         print(f"Successfully inserted {len(data_list)} trader performance records in batch.")
+#     except (Exception, Error) as error:
+#         print(f"Error inserting trader performance metrics in batch: {error}")
+#         if connection: connection.rollback()
+#     finally:
+#         if cursor: cursor.close()
+
+
+def insert_trading_data(connection, data_list: list[tuple]):
+    """
+    Вставляє дані у таблицю trading_data.
+
+    Параметри:
+    connection (psycopg2.connection): Об'єкт підключення до бази даних PostgreSQL.
+    data (dict): Словник з даними для вставки (value, dataType, dateTime, trader_id).
+    table_name (str): Ім'я таблиці для вставки.
+    """
+    try:
+        if not data_list: return
         cursor = connection.cursor()
         insert_query = """
-        INSERT INTO trader_performance_metrics (
-            trader_id, period_days, pnl_value_sign, pnl_per_period,
-            roi_value_sign, roi_per_period, mdd_per_period
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s);
-        """
-        
-        # Prepare data for insertion, handling potential 'N/A' or missing keys
-        # Convert numeric values to appropriate types, default to None if 'N/A' or missing
-        trader_id_val = performance_data.get('trader_id')
-        period_days_val = int(performance_data.get('period_days')) if str(performance_data.get('period_days')).isdigit() else None
-        pnl_value_sign_val = performance_data.get('pnl_value_sign')
-        
-        pnl_raw = performance_data.get('pnl_per_period')
-        pnl_per_period_val = None
-        if isinstance(pnl_raw, str):
-            cleaned_pnl = pnl_raw.replace(',', '').replace('%', '')
-            if cleaned_pnl.replace('.', '', 1).lstrip('-+').isdigit(): # Check if it's a valid number
-                pnl_per_period_val = float(cleaned_pnl)
-
-        roi_value_sign_val = performance_data.get('roi_value_sign')
-        
-        roi_raw = performance_data.get('roi_per_period')
-        roi_per_period_val = None
-        if isinstance(roi_raw, str):
-            cleaned_roi = roi_raw.replace(',', '').replace('%', '')
-            if cleaned_roi.replace('.', '', 1).lstrip('-+').isdigit():
-                roi_per_period_val = float(cleaned_roi)
-
-        mdd_raw = performance_data.get('mdd_per_period')
-        mdd_per_period_val = None
-        if isinstance(mdd_raw, str):
-            cleaned_mdd = mdd_raw.replace('%', '')
-            if cleaned_mdd.replace('.', '', 1).lstrip('-+').isdigit():
-                mdd_per_period_val = float(cleaned_mdd)
-
-        data_to_insert = (
-            trader_id_val,
-            period_days_val,
-            pnl_value_sign_val,
-            pnl_per_period_val,
-            roi_value_sign_val,
-            roi_per_period_val,
-            mdd_per_period_val
-        )
-
-        cursor.execute(insert_query, data_to_insert)
+            INSERT INTO trading_data_per_days (trader_id, value, data_type, date_time, difference)
+            VALUES (%s, %s, %s, %s, %s);
+            """
+        cursor.executemany(insert_query, data_list)
         connection.commit()
-        # print(f"Performance metrics for trader '{trader_id_val}' (Period: {period_days_val} days) recorded successfully.")
-
+        print(f"Successfully inserted {len(data_list)} days of trading in batch.")
+            
     except (Exception, Error) as error:
-        print(f"Error inserting performance metrics for trader '{performance_data.get('trader_id')}': {error}")
-        if connection:
-            connection.rollback()
+        print(f"Error inserting trading data per date in batch: {error}")
+        if connection: connection.rollback()
     finally:
-        if cursor:
-            cursor.close()
+        if cursor: cursor.close()

@@ -4,16 +4,36 @@ import psycopg2
 from psycopg2 import Error
 import time
 import random # For random delays
+
+from config_api import (
+        none
+    ,   API_URL
+    ,   TOTAL_ITEMS
+    ,   PAGE_SIZE
+    ,   BATCH_SIZE
+    ,   trader_links_batch
+    ,   trader_metrics_batch
+    ,   trader_performance_batch
+) # import variables form config_api.py
+
+from config_sql import (
+        none
+    ,   trader_data_table_name
+    ,   trader_data_table_columns
+    ,   trader_metrics_table_name
+    ,   trader_metrics_table_columns
+    ,   trader_performance_table_name
+    ,   trader_performance_table_columns
+) # import variables form config_sql.py
+
 from sql_functions import (
     # add_trader_data,
     get_db_connection,
-    # create_traders_table,
-    # create_trader_metrics_table,
-    # create_trader_performance_table,
-    # insert_trader_link,
-    # insert_trader_metrics,
-    # insert_trader_performance,
-    # db_close_connection
+    create_table,
+    insert_multiple_trader_links_batch,
+    insert_multiple_batch,
+    insert_trading_data,
+    db_close_connection
 ) # Import SQL functions
 
 from functions_api import (
@@ -22,248 +42,6 @@ from functions_api import (
 
 # Period is usually fixed for these leaderboards, e.g., 30 Days
 period_days = '180' # Assuming fixed 30 Days based on your previous data
-
-# --- Database Connection Functions (from previous discussions) ---
-
-# def get_db_connection():
-#     """
-#     Establishes and returns a PostgreSQL database connection.
-#     """
-#     connection = None
-#     try:
-#         connection = psycopg2.connect(
-#             user="postgres",
-#             password="3113325650", # !!! REPLACE WITH YOUR ACTUAL PASSWORD !!!
-#             host="127.0.0.1",
-#             port="5432",
-#             database="trading_data" # Ensure this database exists
-#         )
-#         connection.autocommit = False # We'll manage transactions manually for batching
-#         print("Connection to PostgreSQL successfully established.")
-#         return connection
-        
-#     except (Exception, Error) as error:
-#         print(f"Error connecting to PostgreSQL: {error}")
-#         return None
-
-def db_close_connection(connection):
-    """
-    Closes the PostgreSQL database connection.
-    """
-    try:
-        if connection:
-            connection.close()
-            print("Connection to PostgreSQL successfully closed.")
-    except (Exception, Error) as error:
-        print(f"Error disconnecting from PostgreSQL: {error}")
-
-# --- Table Creation Functions (from previous discussions) ---
-
-def create_trader_links_table(connection):
-    cursor = None
-    try:
-        cursor = connection.cursor()
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS trader_links_table (
-            id SERIAL PRIMARY KEY,
-            trader_id VARCHAR(255) UNIQUE NOT NULL,
-            trader_name VARCHAR(255) NOT NULL,
-            avatar_url TEXT NOT NULL,
-            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        cursor.execute(create_table_query)
-        connection.commit()
-        print("Table 'trader_links_table' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_links_table': {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-def create_trader_metrics_table(connection):
-    cursor = None
-    try:
-        cursor = connection.cursor()
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS trader_metrics_table (
-            id SERIAL PRIMARY KEY,
-            trader_id VARCHAR(255) NOT NULL,
-            active_followers INTEGER,
-            total_spots INTEGER,
-            api_availability VARCHAR(255),
-            aum_value NUMERIC,
-            sharpe_ratio_value NUMERIC,
-            portfolio_type VARCHAR(255),
-            copy_capability VARCHAR(255),
-            badge_name VARCHAR(255),
-            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        cursor.execute(create_table_query)
-        connection.commit()
-        print("Table 'trader_metrics_table' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_metrics_table': {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-def create_trader_performance_table(connection):
-    cursor = None
-    try:
-        cursor = connection.cursor()
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS trader_performance_metrics (
-            id SERIAL PRIMARY KEY,
-            trader_id VARCHAR(255) NOT NULL,
-            period_days INTEGER,
-            pnl_value_sign VARCHAR(1),
-            pnl_per_period NUMERIC,
-            roi_value_sign VARCHAR(1),
-            roi_per_period NUMERIC,
-            mdd_per_period NUMERIC,
-            win_rate_per_period NUMERIC,
-            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        cursor.execute(create_table_query)
-        connection.commit()
-        print("Table 'trader_performance_metrics' checked/created successfully.")
-    except (Exception, Error) as error:
-        print(f"Error creating/checking table 'trader_performance_metrics': {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-# --- Batch Data Insertion Functions (as defined previously) ---
-
-def create_trading_data_per_days(connection, table_name="trading_data_per_days"):
-    """
-    Перевіряє, чи існує таблиця в базі даних, і створює її, якщо не існує.
-
-    Параметри:
-    conn (psycopg2.connection): Об'єкт підключення до бази даних PostgreSQL.
-    table_name (str): Ім'я таблиці, яку потрібно перевірити/створити.
-    """
-    try:
-        with conn.cursor() as cur:
-            # SQL-запит для створення таблиці, якщо вона не існує.
-            # Використовуємо IF NOT EXISTS, щоб уникнути помилок, якщо таблиця вже є.
-            #
-            # Стовпці:
-            # id:         PRIMARY KEY SERIAL для унікального ідентифікатора запису.
-            # trader_id:  INTEGER, може бути неунікальним (NOT NULL, якщо він завжди має бути).
-            # value:      NUMERIC для десяткових чисел.
-            # data_type:  VARCHAR(50) для текстового типу даних (наприклад, 'ROI').
-            # date_time:  BIGINT для міток часу Unix в мілісекундах.
-            create_table_query = f"""
-            CREATE TABLE IF NOT EXISTS {table_name} (
-                id SERIAL PRIMARY KEY,
-                trader_id VARCHAR(255) NOT NULL, -- Додаємо trader_id, який може бути неунікальним
-                value NUMERIC(10, 4) NOT NULL, -- NUMERIC(precision, scale) для точності
-                data_type VARCHAR(50) NOT NULL,
-                date_time BIGINT NOT NULL,
-                difference NUMERIC(10, 4)
-            );
-            """
-            cur.execute(create_table_query)
-            conn.commit()
-            print(f"Таблиця '{table_name}' перевірена/створена успішно.")
-
-    except Error as e:
-        print(f"Помилка при перевірці або створенні таблиці '{table_name}': {e}")
-        # Важливо: Якщо виникла помилка, відкотіть транзакцію
-        conn.rollback()
-
-def insert_multiple_trader_links_batch(connection, data_list: list[tuple]):
-    cursor = None
-    try:
-        if not data_list: return
-        cursor = connection.cursor()
-        insert_query = """
-        INSERT INTO trader_links_table (trader_id, trader_name, avatar_url)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (trader_id) DO UPDATE SET
-            trader_name = EXCLUDED.trader_name,
-            avatar_url = EXCLUDED.avatar_url,
-            added_at = CURRENT_TIMESTAMP;
-        """
-        cursor.executemany(insert_query, data_list)
-        connection.commit()
-        print(f"Successfully added/updated {len(data_list)} trader links in batch.")
-    except (Exception, Error) as error:
-        print(f"Error inserting/updating trader links in batch: {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-def insert_multiple_trader_metrics_batch(connection, data_list: list[tuple]):
-    cursor = None
-    try:
-        if not data_list: return
-        cursor = connection.cursor()
-        insert_query = """
-        INSERT INTO trader_metrics_table (
-            trader_id, active_followers, total_spots, api_availability, 
-            aum_value, sharpe_ratio_value, portfolio_type, copy_capability, badge_name
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        cursor.executemany(insert_query, data_list)
-        connection.commit()
-        print(f"Successfully inserted {len(data_list)} trader metrics records in batch.")
-    except (Exception, Error) as error:
-        print(f"Error inserting trader metrics in batch: {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-def insert_multiple_trader_performance_metrics_batch(connection, data_list: list[tuple]):
-    cursor = None
-    try:
-        if not data_list: return
-        cursor = connection.cursor()
-        insert_query = """
-        INSERT INTO trader_performance_metrics (
-            trader_id, period_days, pnl_value_sign, pnl_per_period,
-            roi_value_sign, roi_per_period, mdd_per_period, win_rate_per_period
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        cursor.executemany(insert_query, data_list)
-        connection.commit()
-        print(f"Successfully inserted {len(data_list)} trader performance records in batch.")
-    except (Exception, Error) as error:
-        print(f"Error inserting trader performance metrics in batch: {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
-
-# 
-def insert_trading_data(connection, data_list: list[tuple]):
-    """
-    Вставляє дані у таблицю trading_data.
-
-    Параметри:
-    connection (psycopg2.connection): Об'єкт підключення до бази даних PostgreSQL.
-    data (dict): Словник з даними для вставки (value, dataType, dateTime, trader_id).
-    table_name (str): Ім'я таблиці для вставки.
-    """
-    try:
-        if not data_list: return
-        cursor = connection.cursor()
-        insert_query = """
-            INSERT INTO trading_data_per_days (trader_id, value, data_type, date_time, difference)
-            VALUES (%s, %s, %s, %s, %s);
-            """
-        cursor.executemany(insert_query, data_list)
-        connection.commit()
-        print(f"Successfully inserted {len(data_list)} days of trading in batch.")
-            
-    except (Exception, Error) as error:
-        print(f"Error inserting trading data per date in batch: {error}")
-        if connection: connection.rollback()
-    finally:
-        if cursor: cursor.close()
 
 # --- Helper for data cleaning/conversion (shared logic for preparing data) ---
 
@@ -326,12 +104,12 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
 
             # PnL Value and Sign
             pnl_value = item.get('pnl')
-            pnl_value_sign = '+' if pnl_value is not None and pnl_value >= 0 else '-'
+            # pnl_value_sign = '+' if pnl_value is not None and pnl_value >= 0 else '-'
             pnl_per_period = str(abs(pnl_value)) if pnl_value is not None else 'N/A'
 
             # ROI Value and Sign
             roi_value = item.get('roi')
-            roi_value_sign = '+' if roi_value is not None and roi_value >= 0 else '-'
+            # roi_value_sign = '+' if roi_value is not None and roi_value >= 0 else '-'
             roi_per_period = str(abs(roi_value)) if roi_value is not None else 'N/A'
 
             # AUM Value
@@ -354,7 +132,7 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
             chart_items = item.get('chartItems')
             
             # Copy Capability - as 'copyStatus' is not in the provided JSON, default to 'N/A'
-            copy_capability = 'N/A' # Default to N/A as it's not present in sample JSON
+            # copy_capability = 'N/A' # Default to N/A as it's not present in sample JSON
 
             traders_data.append({
                 'trader_id': trader_id,
@@ -363,9 +141,9 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
                 'total_spots': total_spots,
                 'api_availability': api_availability,
                 'period_days': period_days,
-                'pnl_value_sign': pnl_value_sign,
+                # 'pnl_value_sign': pnl_value_sign,
                 'pnl_per_period': pnl_per_period,
-                'roi_value_sign': roi_value_sign,
+                # 'roi_value_sign': roi_value_sign,
                 'roi_per_period': roi_per_period,
                 'aum_value': aum_value,
                 'mdd_per_period': mdd_per_period,
@@ -373,7 +151,7 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
                 'sharpe_ratio_value': sharpe_ratio_value,
                 'portfolioType': portfolio_type,
                 'chartItems': chart_items,
-                'copy_capability': copy_capability,
+                # 'copy_capability': copy_capability,
                 'badgeName': badge_name,
                 'avatarUrl': profile_avatar_url # Changed from 'link' to 'avatarUrl'
             })
@@ -389,38 +167,41 @@ def parse_api_response_for_traders(json_data: dict) -> list[dict]:
 
 # --- Main Script Execution ---
 
-if __name__ == "__main__":
-    API_URL = "https://www.binance.com/bapi/futures/v1/friendly/future/copy-trade/home-page/query-list"
-    
-    TOTAL_ITEMS = 60
-    PAGE_SIZE = 18    
-    
+if __name__ == "__main__":    
+    print("API_URL: " + API_URL)    
+        
     TOTAL_PAGES = (TOTAL_ITEMS + PAGE_SIZE - 1) // PAGE_SIZE
-    print(TOTAL_PAGES)
-    
-    BATCH_SIZE = 50  
+    print(f"TOTAL_PAGES: {TOTAL_PAGES}")  
 
     conn = get_db_connection()
     if not conn:
-        print("Exiting due to database connection error.")
+        print(f"Exiting due to database connection error \n{conn}")
         exit()
+    else:
+        print(f"Connection to PostgreSQL successfully established \n{conn}")
 
     try:
         # 1. Create all necessary tables first
-        create_trader_links_table(conn)
-        create_trader_metrics_table(conn)
-        create_trader_performance_table(conn)
-        create_trading_data_per_days(conn)
+        create_table(conn, trader_data_table_name, trader_data_table_columns)
+        create_table(conn, trader_metrics_table_name, trader_metrics_table_columns)
+        create_table(conn, trader_performance_table_name, trader_performance_table_columns)
+        # create_trading_data_per_days(conn)
         
-        trader_links_batch = []
-        trader_metrics_batch = []
-        trader_performance_batch = []
 
         print("\n--- Starting data scraping from API and insertion ---")
 
         for page_num in range(1, TOTAL_PAGES + 1):
             
             print(f"Fetching data for page {page_num}/{TOTAL_PAGES} from API with PAGE_SIZE={PAGE_SIZE}.")
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9,uk;q=0.8',
+                'ClientType': 'web',
+                'Referer': 'https://www.binance.com/copy-trading/leaderboard'
+            }
 
             payload = {
                 "pageNumber": page_num,
@@ -435,16 +216,6 @@ if __name__ == "__main__":
                 "portfolioType": "PUBLIC",
                 "useAiRecommended": False
             }
-            
-            headers = {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.9,uk;q=0.8',
-                'ClientType': 'web',
-                'Referer': 'https://www.binance.com/copy-trading/leaderboard'
-            }
-
 
             json_response_data = fetch_api_data_with_retries(API_URL, headers, payload, page_num, 5, 10)
             if json_response_data is None:
@@ -476,7 +247,7 @@ if __name__ == "__main__":
                         clean_and_convert_numeric(trader_data.get('aum_value'), float),
                         clean_and_convert_numeric(trader_data.get('sharpe_ratio_value'), float),
                         trader_data.get('portfolioType'),
-                        trader_data.get('copy_capability'),
+                        # trader_data.get('copy_capability'),
                         trader_data.get('badgeName'),
                         
                     )
@@ -485,9 +256,9 @@ if __name__ == "__main__":
                     performance_to_add = (
                         trader_data.get('trader_id'),
                         clean_and_convert_numeric(trader_data.get('period_days'), int),
-                        trader_data.get('pnl_value_sign'),
+                        # trader_data.get('pnl_value_sign'),
                         clean_and_convert_numeric(trader_data.get('pnl_per_period'), float),
-                        trader_data.get('roi_value_sign'),
+                        # trader_data.get('roi_value_sign'),
                         clean_and_convert_numeric(trader_data.get('roi_per_period'), float),
                         clean_and_convert_numeric(trader_data.get('mdd_per_period'), float),
                         clean_and_convert_numeric(trader_data.get('win_rate_per_period'), float)                        
@@ -504,7 +275,7 @@ if __name__ == "__main__":
                             chart_item.get('value'),
                             chart_item.get('dataType'),
                             chart_item.get('dateTime'),
-                            null                        
+                            None
                         )
                         chart_items_batch.append(chart_item_to_add)
                     # insert_trading_data(conn, chart_items_batch)
@@ -533,9 +304,9 @@ if __name__ == "__main__":
 
                     if len(trader_links_batch) >= BATCH_SIZE:
                         print(f"Inserting batch of {len(trader_links_batch)} traders...")
-                        insert_multiple_trader_links_batch(conn, trader_links_batch)
-                        insert_multiple_trader_metrics_batch(conn, trader_metrics_batch)
-                        insert_multiple_trader_performance_metrics_batch(conn, trader_performance_batch)
+                        insert_multiple_trader_links_batch(conn, trader_data_table_name, trader_links_batch)
+                        insert_multiple_batch(conn, trader_metrics_table_name, trader_metrics_table_columns, trader_metrics_batch)
+                        insert_multiple_batch(conn, trader_performance_table_name, trader_performance_table_columns, trader_performance_batch)
                         
                         trader_links_batch = []
                         trader_metrics_batch = []
@@ -552,9 +323,10 @@ if __name__ == "__main__":
 
         if trader_links_batch:
             print(f"Inserting remaining batch of {len(trader_links_batch)} traders...")
-            # insert_multiple_trader_links_batch(conn, trader_links_batch)
-            # insert_multiple_trader_metrics_batch(conn, trader_metrics_batch)
-            # insert_multiple_trader_performance_metrics_batch(conn, trader_performance_batch)
+            insert_multiple_trader_links_batch(conn, trader_data_table_name, trader_links_batch)
+            insert_multiple_batch(conn, trader_metrics_table_name, trader_metrics_table_columns, trader_metrics_batch)
+            insert_multiple_batch(conn, trader_performance_table_name, trader_performance_table_columns, trader_performance_batch)
+
 
         print("\n--- Data scraping and insertion complete ---")
 
