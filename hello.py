@@ -1,6 +1,6 @@
 import re
-import psycopg2  # Для PostgreSQL
-import os # Імпортуємо модуль os
+import psycopg2  # For PostgreSQL
+import os # Import module "os"
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service 
@@ -15,7 +15,7 @@ from selenium_functions import (
     get_trader_links,
     extract_trader_id,
     # get_trader_details
-)  # Імпортуємо функції
+)
 from sql_functions import (
     # add_trader_data,
     get_db_connection,
@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     driver = webdriver.Chrome()  # Переконайтеся, що ChromeDriver знаходиться у вашому PATH
     driver.get(URL)
-    print(f"Відкрито URL: {URL}")
+    print(f"Opened URL is: {URL}")
 
     close_popup_if_exists(driver, popup_class, close_button_class)
 
