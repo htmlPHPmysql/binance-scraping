@@ -1,6 +1,7 @@
 # config.py
 
 URL = "https://www.binance.com/en/copy-trading"
+URL_COPY_MANAGEMENT = "https://www.binance.com/en/copy-trading/copy-management"
 DATA_LOAD_TIMEOUT = 30  # Час очікування завантаження нових даних (в секундах)
 OUTPUT_FILENAME = "binance_copy_trading_dom.txt"
 popup_class = "bn-modal-wrap"

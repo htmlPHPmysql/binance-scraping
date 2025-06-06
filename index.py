@@ -11,6 +11,7 @@ from config_api import (
     ,   TOTAL_ITEMS
     ,   PAGE_SIZE
     ,   BATCH_SIZE
+    ,   portfolio_type
     ,   trader_links_batch
     ,   trader_metrics_batch
     ,   trader_performance_batch
@@ -213,7 +214,7 @@ if __name__ == "__main__":
                 "nickname": "",
                 "order": "DESC",
                 "userAsset": 0,
-                "portfolioType": "PUBLIC",
+                "portfolioType": portfolio_type,
                 "useAiRecommended": False
             }
 
