@@ -1,8 +1,9 @@
 # config.py
 
 URL = "https://www.binance.com/en/copy-trading"
-URL_COPY_MANAGEMENT = "https://www.binance.com/en/copy-trading/copy-management"
-DATA_LOAD_TIMEOUT = 30  # Час очікування завантаження нових даних (в секундах)
+DATA_LOAD_TIMEOUT = 20  # Час очікування завантаження нових даних (в секундах)
+delay_sec_min = 5
+delay_sec_max = 10
 OUTPUT_FILENAME = "binance_copy_trading_dom.txt"
 popup_class = "bn-modal-wrap"
 close_button_class = "bn-modal-header-next"
@@ -11,6 +12,8 @@ pages_selector = "bn-pagination-item"
 name_trader_class = "typography-subtitle6"
 loading_indicator_class="animate-pulse"
 TRADER_CARD_CLASS = "card-outline"
+# COPY_MANAGEMENT_SECTION_DIV_SELECTOR = "div.copy-mgmt-wrap"
+COPY_MANAGEMENT_SECTION_DIV_SELECTOR = "div.bn-flex.py-\\[24px\\]"
 SELECTOR_CLASSES = [
     "typography-subtitle6", #name of the trader
     "pnl-data", # PnL
