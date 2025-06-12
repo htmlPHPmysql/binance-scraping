@@ -174,3 +174,124 @@ git push origin main (або ваша гілка)
 Ні, bapi ендпоінти Binance не мають публічної офіційної документації.
 
 Вони є внутрішніми API, які розроблені та використовуються самою Binance для роботи свого веб-сайту та мобільних додатків. Binance не надає документацію для цих ендпоінтів стороннім розробникам, оскільки вони не призначені для зовнішнього використання.
+
+*******************************************************************
+
+The message [Cloudflare Turnstile] Invalid input for optional parameter "cData", got "null". is a very strong indicator that you are now encountering a Cloudflare Turnstile CAPTCHA challenge on the Binance login page.
+
+What is Cloudflare Turnstile?
+Cloudflare Turnstile is a CAPTCHA alternative designed to be less intrusive for legitimate users while still blocking bots. Instead of making users solve puzzles, it runs a series of non-intrusive tests in the background to determine if the user is human.
+
+The error message Invalid input for optional parameter "cData", got "null" comes from the JavaScript code that runs the Turnstile widget. It suggests that when the Turnstile widget is being initialized or executed, it's expecting some data (cData) that it's not receiving, or it's receiving a null value where a non-null value is expected. This happens because Selenium is interacting with the page in an automated way, and the browser environment (which Turnstile is designed to detect) is not behaving like a typical human browser session.
+
+The Challenge of Automating Turnstile
+Automating Cloudflare Turnstile is significantly harder than simply filling out form fields or clicking buttons, because:
+
+It's designed to detect bots: Turnstile actively analyzes browser characteristics, mouse movements, timing, and other subtle signals to differentiate humans from automated scripts. Selenium, by its nature, produces a highly automated browser environment.
+No direct "solve" button: There's no element you can just click or input field to fill to "solve" it. The challenge is handled in the background.
+Client-side analysis: The verification happens largely on the client side (in the browser), making it difficult for your Python script to directly control or influence it.
+Solutions for Cloudflare Turnstile (and other CAPTCHAs)
+Since you're running a "simulator" and encountering this, here are the general approaches, from most ethical/simple to more complex/less recommended for personal projects:
+
+1. Manual Intervention (for testing/development)
+This is the simplest way to proceed during development:
+
+When your script hits the Turnstile, it will likely pause.
+
+The browser window opened by Selenium will display the Turnstile challenge.
+
+You, the human, will need to manually solve the Turnstile (if it presents a visible challenge) or simply wait for it to pass if it's invisible.
+
+Then, your script can continue. You already have an input("Натисніть Enter, щоб закрити...") which you can adapt.
+
+---------------------------------------------------------------------------------
+
+О, так, ковзні капчі (slider CAPTCHAs) — це ще один поширений тип викликів, який часто використовує Binance (зокрема, капча GeeTest). Це, безумовно, складніше, ніж просто ввести текст.
+
+Проблема з ковзними капчами
+Ковзна капча вимагає від вас:
+
+Розпізнати, чого не вистачає на зображенні фону.
+Перетягнути шматочок пазла (повзунок) у правильне місце, щоб завершити зображення.
+Для автоматизації це означає:
+
+Візуальний аналіз: Вам потрібно "бачити" зображення, визначити прогалину та шматочок пазла.
+Вимірювання: Визначити точні координати, куди потрібно перетягнути шматочок.
+Симуляція перетягування: Імітувати рух миші від початкової точки повзунка до цільової, часто з деякою "людською" варіацією (наприклад, не просто пряма лінія).
+Методи обходу або імітації ковзної капчі
+Є кілька підходів, але одразу скажу, що автоматизація ковзної капчі за допомогою лише Selenium є дуже складною і часто потребує додаткових бібліотек та передових методів.
+
+1. Ручне втручання (найпростіший для розробки)
+Як ми робили з Cloudflare Turnstile, це найпростіший спосіб продовжувати розробку:
+
+Коли з'явиться ковзна капча, ваш скрипт зупиниться на попередній input() паузі.
+Ви вручну перетягуєте повзунок у браузері, керованому Selenium.
+Після вирішення капчі, повертаєтеся до консолі та натискаєте Enter.
+Це ідеально підходить для тестування та розуміння подальшої логіки вашого парсера, але не для повністю автоматичного виконання.
+
+Python
+
+# ... (after entering username and password)
+
+# --- Manual intervention for CAPTCHA (including slider CAPTCHA) ---
+print("\n--- A CAPTCHA (e.g., slider puzzle) might be present. Please check the browser window. ---")
+print("Manually solve the CAPTCHA by dragging the slider.")
+input("Press Enter in the console AFTER the CAPTCHA is resolved in the browser to continue...")
+print("Resuming script execution...")
+# --- END OF MANUAL PAUSE ---
+
+# ... (rest of your code: clicking 'Next' button, waiting for dashboard URL)
+2. Сервіси розв'язання CAPTCHA (рекомендовано для автоматизації)
+Це найпоширеніший і найнадійніший метод для автоматизованого обходу CAPTCHA, включаючи ковзні.
+
+Принцип роботи:
+
+Ваш скрипт виявляє CAPTCHA (наприклад, за наявністю iframe або певного елемента).
+Він отримує дані CAPTCHA (зазвичай "sitekey" та URL сторінки) і відправляє їх до API стороннього сервісу (наприклад, 2Captcha, Anti-Captcha, Capsolver).
+Сервіс використовує живих людей або власні AI-алгоритми для розв'язання капчі.
+Сервіс повертає токен-рішення вашому скрипту.
+Ваш скрипт "вставляє" цей токен у відповідне поле або JavaScript на сторінці, щоб подати вирішену капчу.
+Переваги: Висока надійність, повністю автоматизовано.
+Недоліки: Це платні послуги, і їхня інтеграція може бути дещо складною.
+
+Пошукові результати показують, що Binance використовує GeeTest, і є сервіси, які підтримують розв'язання GeeTest CAPTCHA.
+
+3. Програмне розв'язання за допомогою OpenCV (дуже складно і ненадійно)
+Цей метод включає використання бібліотек обробки зображень, таких як OpenCV, для:
+
+Зробити скріншот сторінки з капчею.
+Завантажити фонове зображення та шматочок пазла.
+Використовувати алгоритми обробки зображень (наприклад, визначення країв, зіставлення шаблонів) для пошуку точного місця, куди має бути перетягнутий шматочок.
+Розрахувати необхідну відстань перетягування.
+Використовувати ActionChains Selenium для симуляції перетягування повзунка на цю відстань.
+Переваги: Теоретично безкоштовно (якщо ви можете це реалізувати).
+Недоліки:
+
+Надзвичайно складно: Потрібні глибокі знання комп'ютерного зору.
+Крихкість: Найменша зміна в дизайні капчі на сайті Binance може повністю зламати ваш розв'язувач.
+Антибот-виявлення: Навіть якщо ви вирішите візуальну частину, сайт може виявити "нелюдську" поведінку руху повзунка (наприклад, ідеально пряма лінія, відсутність мікро-пауз/вагань). Потрібно імітувати реалістичні рухи миші.
+Деякі проекти на GitHub намагалися це робити (як показано у пошукових результатах, наприклад, rish-hyun/geetest-slider-captcha-bypass або lcyyzy/CaptchaCracker), але вони дуже специфічні та можуть швидко застаріти.
+
+4. undetected_chromedriver або SeleniumBase (може допомогти запобігти, але не розв'язати)
+Ви вже розглядали undetected_chromedriver. Він може допомогти запобігти появі капчі взагалі, роблячи ваш браузер менш "роботизованим". Однак, якщо капча все ж з'явиться, він не розв'яже її автоматично. Якщо ви ще не пробували його, це варто зробити, оскільки це може зменшити частоту появи капчі.
+
+Рекомендації
+Для вашого "симулятора парсингу" я рекомендую почати з:
+
+Ручного втручання для ковзної капчі. Це дозволить вам продовжувати розробку логіки парсингу, не застрягаючи на розв'язанні капчі.
+Якщо вам потрібна повна автоматизація без участі людини, тоді вам, ймовірно, доведеться розглянути платні сервіси розв'язання CAPTCHA. Спроба реалізувати розв'язувач на основі комп'ютерного зору (OpenCV) для такої складної капчі, як у Binance, є надзвичайно трудомістким завданням з низьким шансом на довгостроковий успіх.
+
+=======================================================================================
+
+Google Apps Script — це платформа розробки, яка дозволяє розширювати функціонал Google Workspace (Sheets, Docs, Forms, Gmail тощо) за допомогою JavaScript. Вона є вбудованою частиною екосистеми Google, тому скрипти виконуються на серверах Google без необхідності налаштовувати власні сервери чи локальні середовища.
+
+Python для Google Sheets (але не безпосередньо в Google)
+Натомість, Python чудово підходить для автоматизації роботи з Google Sheets, але виконується він поза середовищем Google Apps Script:
+
+На вашому комп'ютері: Ви запускаєте Python-скрипт локально.
+На віддаленому сервері: Ви розгортаєте Python-скрипт на власному сервері, VPS або в хмарних функціях (наприклад, Google Cloud Functions, AWS Lambda).
+У цих сценаріях Python-скрипт з'єднується з Google Sheets через Google Sheets API. Це означає, що ваш Python-скрипт "спілкується" з Google через інтернет, використовуючи API-ключі та авторизацію, щоб читати чи записувати дані в таблицю.
+
+Підсумок
+Google Apps Script (JavaScript): Скрипт виконується всередині Google-середовища, тісно інтегрований з Google Workspace. Ідеально для простих автоматизацій та розширень функціоналу Sheets без сторонніх залежностей.
+Python (зовнішнє середовище): Скрипт виконується поза Google-седовищем і взаємодіє з Google Sheets через API. Надає більшу гнучкість, доступ до потужних бібліотек, кращі інструменти для розробки та можливість розгортання на власних серверах.

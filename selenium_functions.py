@@ -1,12 +1,17 @@
 # selenium_functions.py
 # from selenium_functions import close_popup_if_exists, uncheck_checkbox  # Імпортуємо функції
 import re
-import psycopg2  # Для PostgreSQL
+import os
+import time
+import random # For random delays
+# import psycopg2  # Для PostgreSQL
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
+
 from config import (
     URL,
     DATA_LOAD_TIMEOUT,
@@ -110,244 +115,196 @@ def wait_for_element_to_disappear(driver, locator):
         # У контексті EC.invisibility_of_element_located, це зазвичай означає, що він зник успішно.
         print(f"Елементи ('{locator}') зникли під час перевірки (StaleElementReferenceException).")
         return True
-    
-def get_trader_links(driver, trader_card_class):
-    """
-    Отримує посилання на профілі трейдерів з карток.
 
-    :param driver: Екземпляр WebDriver.
-    :param trader_card_class: Клас елементів, які містять картки з інформацією про трейдерів.
-    :return: Список посилань на профілі трейдерів.  Повертає порожній список, якщо елементи не знайдені.
+def check_presence_element(driver, by_type, selector, timeout):
     """
-    all_traders_info = []
-    try:
-        # Знаходимо всі елементи div з заданим класом картки
-        card_elements = driver.find_elements(By.CLASS_NAME, trader_card_class)
-        for card in card_elements:
-            try:
-                # В кожній картці знаходимо посилання на профіль трейдера.  Припускаємо, що посилання знаходиться в тегу <a>.
-                # Це може бути змінено, якщо структура вашого HTML відрізняється.
-                a_tag = card.find_element(By.TAG_NAME, "a")
-                link = a_tag.get_attribute("href")
-                trader_id = extract_trader_id(link)
-                link_text = a_tag.text.strip()
-                trader_metrics = parse_trader_full_metrics(link_text)
-                trader_info = {"trader_id": trader_id}
-                
-                trader_info.update(trader_metrics)
-                link = {"link": link}
-                trader_info.update(link)
-                all_traders_info.append(trader_info)
-                # all_traders_info.update(trader_metrics)
-            except NoSuchElementException:
-                print("Посилання на трейдера не знайдено в одній з карток.")
-                # Якщо посилання не знайдено в картці, продовжуємо обробку інших карток
-                continue
-        print(f"{len(all_traders_info)} lead traders links are found")
-    except NoSuchElementException:
-        print(f"Елементи з класом '{trader_card_class}' не знайдено.")
-    return all_traders_info
-
-def extract_trader_id(url):
-    """
-    Витягає ID трейдера з URL.
-
-    :param url: URL профілю трейдера Binance Copy Trading.
-    :return: ID трейдера у вигляді рядка, або None, якщо ID не знайдено.
-    """
-    match = re.search(r"/lead-details/(\d+)", url)
-    if match:
-        return match.group(1)
-    else:
-        return None
-    
-def parse_trader_full_metrics(data_string: str) -> dict:
-    """
-    Parses a multi-line string containing various trader metrics and returns a dictionary
-    with extracted data. This function is designed to be more robust to missing
-    optional fields by searching for keywords.
+    Waits for an element to be visible
 
     Args:
-        data_string: The input string containing trader metrics, separated by newlines.
+        driver (webdriver.Chrome): The Selenium WebDriver instance.
+        by_type (By): The By strategy (e.g., By.NAME, By.ID, By.CSS_SELECTOR).
+        selector (str): The selector string for the element.
+        timeout (int): The maximum time to wait for the element in seconds.        
+        
+    Returns:
+        WebElement: The found WebElement if successful, None otherwise.
+    """
+    try:
+
+        print(f"({by_type}='{selector}') waiting for element to be present")
+        
+        element = WebDriverWait(driver, timeout).until(
+            # EC.presence_of_element_located((by_type, selector))
+            EC.visibility_of_element_located((by_type, selector))
+        )
+                    
+        print(f"({by_type}='{selector}') is visible")
+
+        return element
+
+    except TimeoutException:
+        print(f"Error: ({by_type}='{selector}') not found within {timeout} seconds.")
+        return None
+    
+    except NoSuchElementException:
+        print(f"Error: Element not found by selector '{selector}'.")
+        return None
+    
+    except Exception as e:
+        print(f"An unexpected error occurred while interacting with ({by_type}='{selector}'): {e}")
+        return None
+    
+def move_cursor(driver, by_type, selector, timeout):
+    """
+    Waits for an element to be clickable  and move the cursor over the elemnt (button).
+
+    Args:
+        driver (webdriver.Chrome): The Selenium WebDriver instance.
+        by_type (By): The By strategy (e.g., By.NAME, By.ID, By.CSS_SELECTOR).
+        selector (str): The selector string for the element.
+        timeout (int): The maximum time to wait for the element in seconds.        
 
     Returns:
-        A dictionary with parsed trader data. Returns an empty dictionary if parsing fails
-        due to unexpected format.
+        None
     """
-    # Split the input string into lines and strip whitespace, filtering out empty lines.
-    lines = [line.strip() for line in data_string.strip().split('\n') if line.strip()]
-
-    # Initialize the dictionary with default 'N/A' values for all expected fields.
-    # This ensures all keys are present in the output, even if data is missing.
-    trader_metrics = {
-        'name': 'N/A',
-        'active_followers': 'N/A',
-        'total_spots': 'N/A',
-        'api_availability': 'N/A', # This field will be updated if "API" is found in the input string.
-        'period_days': 'N/A', # Consolidated field for period (e.g., 30 from "30 Days PNL")
-        'pnl_value_sign': 'N/A', # Field for the sign of PnL value
-        'pnl_per_period': 'N/A', # Renamed from pnl_value
-        'roi_value_sign': 'N/A', # Field for the sign of ROI value (moved up)
-        'roi_per_period': 'N/A', # Renamed from roi_value (moved down)
-        'aum_value': 'N/A',
-        'mdd_per_period': 'N/A', # Corrected typo from mdd_value_preiod
-        'sharpe_ratio_value': 'N/A',
-        'mock_status': 'N/A',
-        'copy_capability': 'N/A'
-    }
-
-    # If no lines are parsed, return an empty dictionary.
-    if not lines:
-        print("Error: Input data string is empty or contains no meaningful lines.")
-        return {}
-
-    # The first line is always the trader's name.
-    trader_metrics['name'] = lines[0]
-
-    # The second line typically contains active followers and total spots, e.g., "36 / 600".
-    if len(lines) > 1:
-        followers_spots_parts = lines[1].split(' / ')
-        if len(followers_spots_parts) == 2:
-            trader_metrics['active_followers'] = followers_spots_parts[0]
-            trader_metrics['total_spots'] = followers_spots_parts[1]
-        else:
-            print(f"Warning: Could not parse active_followers/total_spots from '{lines[1]}'")
-
-    # Iterate through the rest of the lines (starting from the third line, index 2)
-    # to find specific metrics based on keywords. This makes parsing more resilient
-    # to variations in the presence or order of optional fields.
-    i = 2 
-    while i < len(lines):
-        line = lines[i]
-
-        # Check for the "API" keyword. If found, assign the entire line to 'api_availability'.
-        if "API" in line:
-            trader_metrics['api_availability'] = line
-        # Check for "PNL" keyword. If found, assign the line as period and the next line as value.
-        elif "PNL" in line:
-            # Extract only the numerical part for 'period_days'
-            match = re.search(r'(\d+)', line)
-            if match and trader_metrics['period_days'] == 'N/A': # Set period_days only if not already set
-                trader_metrics['period_days'] = match.group(1)
-
-            if i + 1 < len(lines): # Ensure there's a next line for the value
-                raw_pnl_value = lines[i+1]
-                # Extract the sign and the number part for pnl_value
-                pnl_match = re.match(r'([+-])?(.+)', raw_pnl_value)
-                if pnl_match:
-                    # Assign sign first, then value
-                    trader_metrics['pnl_value_sign'] = pnl_match.group(1) if pnl_match.group(1) else '' # Store '+' or '-' or empty string
-                    # Clean the number part: remove commas and percentage signs
-                    trader_metrics['pnl_per_period'] = pnl_match.group(2).replace(',', '').replace('%', '')
-                else:
-                    trader_metrics['pnl_value_sign'] = 'N/A' # Default sign if no match
-                    trader_metrics['pnl_per_period'] = raw_pnl_value.replace(',', '').replace('%', '') # Store as is if no match, but clean
-                i += 1 # Advance index to skip the value line as it's already processed
-        # Check for "ROI" keyword.
-        elif "ROI" in line:
-            if i + 1 < len(lines):
-                raw_roi_value = lines[i+1]
-                # Extract the sign and the number part for roi_value
-                roi_match = re.match(r'([+-])?(.+)', raw_roi_value)
-                if roi_match:
-                    # Assign sign first, then value
-                    trader_metrics['roi_value_sign'] = roi_match.group(1) if roi_match.group(1) else ''
-                    # Clean the number part: remove commas and percentage signs
-                    trader_metrics['roi_per_period'] = roi_match.group(2).replace(',', '').replace('%', '')
-                else:
-                    trader_metrics['roi_value_sign'] = 'N/A'
-                    trader_metrics['roi_per_period'] = raw_roi_value.replace(',', '').replace('%', '')
-                i += 1
-        # Check for "AUM" keyword.
-        elif "AUM" in line:
-            if i + 1 < len(lines):
-                trader_metrics['aum_value'] = lines[i+1].replace(',', '') # Remove commas for numeric conversion
-                i += 1
-        # Check for "MDD" keyword.
-        elif "MDD" in line:
-            # Extract only the numerical part for 'period_days'
-            match = re.search(r'(\d+)', line)
-            if match and trader_metrics['period_days'] == 'N/A': # Set period_days only if not already set
-                trader_metrics['period_days'] = match.group(1)
-
-            if i + 1 < len(lines):
-                trader_metrics['mdd_per_period'] = lines[i+1].replace('%', '') # Remove percentage sign
-                i += 1
-        # Check for "Sharpe Ratio" keyword.
-        elif "Sharpe Ratio" in line:
-            if i + 1 < len(lines):
-                trader_metrics['sharpe_ratio_value'] = lines[i+1]
-                i += 1
-        # Check for "Mock" or "Live" keyword. These indicate the trader's status.
-        # Assume the line immediately following this status is the copy capability.
-        elif "Mock" in line: # Note: "or 'Live' in line" was removed here
-            trader_metrics['mock_status'] = line
-            # If there's a next line, assume it's the copy capability, regardless of its content.
-            if i + 1 < len(lines):
-                trader_metrics['copy_capability'] = lines[i+1]
-                i += 1 # Consume this line as well, since it's now processed as copy_capability
+    try:
+        print(f"({by_type}='{selector}') checking to be clickable")
         
-        i += 1 # Move to the next line for the next iteration
+        element = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((by_type, selector))
+        )
+        
+        print(f"({by_type}='{selector}') is clickable")
+        
+        actions = ActionChains(driver)        
+        actions.move_to_element(element).perform()
+        print(f"Action 'move_to_element' performed. ({by_type}='{selector}') has the cursor hovered")       
 
-    return trader_metrics
+    except TimeoutException:
+        print(f"Error: ({by_type}='{selector}') is not interactable within {timeout} seconds.")
+        return None
+    except NoSuchElementException:
+        print(f"Error: ({by_type}='{selector}') not found by selector '{selector}'.")
+        return None
+    except Exception as e:
+        print(f"Could not click the button ({by_type}='{selector}'): {e}")
+        return None
     
-# --- Added function to extract trader details ---
-# def get_trader_details(driver, trader_card_class, selector_classes):
-#     """
-#     Extracts trader names, PnL, ROI, and follower counts from card elements.
+def click_element(driver, by_type, selector, timeout):
+    """
+    Waits for an element to be clickable and optionally performs an action (click).
 
-#     :param driver: WebDriver instance.
-#     :param card_class: Class of the main card element (e.g., "card-outline").
-#     :param selector_classes: A list containing:
-#                              [0] Class of the element containing the trader's name (e.g., "typography-subtitle6").
-#                              [1] Class for PnL data (e.g., "pnl-data").
-#                              [2] Class for ROI data (e.g., "typography-subtitle3").
-#                              [3] Class for link of the trader details-page (e.g., "inline-flex").
-#     :return: A list of dictionaries, each containing 'name', 'pnl', 'roi'.
-#     """
-#     trader_data = []
-#     card_elements = driver.find_elements(By.CLASS_NAME, trader_card_class)
-#     print(f"Found {len(card_elements)} trader cards.")
+    Args:
+        driver (webdriver.Chrome): The Selenium WebDriver instance.
+        by_type (By): The By strategy (e.g., By.NAME, By.ID, By.CSS_SELECTOR).
+        selector (str): The selector string for the element.
+        timeout (int): The maximum time to wait for the element in seconds.        
 
-#     # Extract selectors from the list
-#     name_class = selector_classes[0]
-#     pnl_class = selector_classes[1]
-#     roi_class = selector_classes[2]
-#     link_class = selector_classes[3]
+    Returns:
+        None
+    """
+    try:
+        print(f"({by_type}='{selector}') checking to be clickable")
+        
+        element = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((by_type, selector))
+        )
+        if element:
+            print(f"({by_type}='{selector}') is clickable")
+        
+        actions = ActionChains(driver)        
+        actions.click().perform()
+        print(f"Action 'click' performed. ({by_type}='{selector}') clicked button")       
 
-#     for i, card in enumerate(card_elements):
-#         name = "N/A"
-#         pnl = "N/A"
-#         roi = "N/A"
-#         link = "N/A"
+    except TimeoutException:
+        print(f"Error: ({by_type}='{selector}') is not interactable within {timeout} seconds.")
+        return None
+    except NoSuchElementException:
+        print(f"Error: ({by_type}='{selector}') not found by selector '{selector}'.")
+        return None
+    except Exception as e:
+        print(f"Could not click the button ({by_type}='{selector}'): {e}")
+        return None
 
-#         try:
-#             # Extract trader name
-#             name_element = card.find_element(By.CLASS_NAME, name_class)
-#             name = name_element.text.strip()
-#         except NoSuchElementException:
-#             print(f"Trader name not found in card {i+1}.")
+def add_random_delay(min_seconds, max_seconds):
+    """
+    Introduces a random programmatic delay between min_seconds and max_seconds.
 
-#         try:
-#             # Extract PnL
-#             pnl_element = card.find_element(By.CLASS_NAME, pnl_class)
-#             pnl = pnl_element.text.strip()
-#         except NoSuchElementException:
-#             print(f"PnL data not found in card {i+1}.")
+    Args:
+        min_seconds (float): The minimum number of seconds for the delay.
+        max_seconds (float): The maximum number of seconds for the delay.
+    """
+    random_delay = random.uniform(min_seconds, max_seconds)
+    print(f"Adding a programmatic delay of {random_delay:.2f} seconds...")
+    time.sleep(random_delay)
+    print("Delay finished")
 
-#         try:
-#             # Extract ROI
-#             roi_element = card.find_element(By.CLASS_NAME, roi_class)
-#             roi = roi_element.text.strip()
-#         except NoSuchElementException:
-#             print(f"ROI data not found in card {i+1}.")
+def human_like_send_keys(element, text):
+    for char in text:
+        element.send_keys(char)
+        time.sleep(random.uniform(0.05, 0.2)) # Delay between 50ms and 200ms per character
+    print(f"({element}') entered value")
 
-#         try:
-#             # Extract link
-#             link_element = card.find_element(By.CLASS_NAME, link_class)
-#             link = link_element.text.strip()
-#         except NoSuchElementException:
-#             print(f"Link data not found in card {i+1}.")
+def undetected_chromedriver_add_argument(uc):
 
-#         trader_data.append({"name": name, "pnl": pnl, "roi": roi, "link": link})
-#     return trader_data
+    # Configure options for undetected_chromedriver
+    # uc.ChromeOptions is used instead of selenium.webdriver.ChromeOptions for better compatibility
+    chrome_options = uc.ChromeOptions()
+    # You can add arguments here if needed, for example, for headless mode:
+    # chrome_options.add_argument("--headless") # Uncomment if you want to run without a visible browser UI
+    
+    chrome_options.add_argument("--no-sandbox")
+
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
+    # For Ukrainian, then English US, then general English
+    chrome_options.add_argument("--lang=uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7")
+
+    chrome_options.add_argument("--start-maximized") # Maximizes the browser window
+    # OR
+    # chrome_options.add_argument("--window-size=1920,1080") # Specific common resolution
+
+    # This is a very important one. Selenium (and other automation tools) set a JavaScript flag 
+    # (navigator.webdriver) that websites can detect. undetected_chromedriver aims to handle this, 
+    # but explicitly adding this argument can be an extra layer of defense.
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+
+    # Add a user agent to mimic a real browser (optional, but good practice)
+    # BY THE WAY this is helpfull for eliminate slider CAPTCHAs
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+
+    # While Flash is mostly dead, some older anti-bot systems might check for Flash-related permissions.
+    chrome_options.add_argument("--disable-features=EnableEphemeralFlashPermission")
+
+    # Sometimes disabling certain experimental features can make the browser behave
+    # more like a standard, older version
+    chrome_options.add_argument("--disable-site-isolation-trials")
+
+    # incognito mode can sometimes help, as it ensures a clean session without 
+    # pre-existing cookies or cache, reducing the "history" footprint
+    # chrome_options.add_argument("--incognito")
+
+    # --- ДОДАЙТЕ ЦІ РЯДКИ ДЛЯ ЗБЕРЕЖЕННЯ ПРОФІЛЮ ---
+    # Створіть директорію для профілю, якщо вона не існує
+    profile_dir = os.path.join(os.getcwd(), "chrome_profile") # Створити папку 'chrome_profile' у поточній робочій директорії
+    if not os.path.exists(profile_dir):
+        os.makedirs(profile_dir)
+        print(f"Created Chrome profile directory: {profile_dir}")
+    
+    chrome_options.add_argument(f"--user-data-dir={profile_dir}")
+
+    # Disable Password Manager and Credentials Service: Sometimes these can trigger internal browser behaviors
+    # that are not typical for a fresh, non-human-controlled session.
+    chrome_options.add_experimental_option(
+        "prefs", {"credentials_enable_service": False, "profile.password_manager_enabled": False}
+    )
+
+    # Initialize the WebDriver using undetected_chromedriver
+    # This automatically handles ChromeDriver executable download and patching for stealth.
+    driver = uc.Chrome(options=chrome_options) # Replaced webdriver.Chrome() with uc.Chrome()
+    # If you were using a specific chromedriver_path, you would remove it.
+    # For Codespaces, if you uncommented the Codespaces section, you might need to adjust.
+    # For local Windows/macOS, just `uc.Chrome()` is usually enough.
+
+    return driver
+
