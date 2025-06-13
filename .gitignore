@@ -13,7 +13,7 @@ venv/
 chrome_profile/
 
 # Google Cloud credentials
-# credentials/
+credentials/
 
 # Folder with log files
 logs/
