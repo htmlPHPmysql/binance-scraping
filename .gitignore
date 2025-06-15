@@ -13,7 +13,8 @@ venv/
 chrome_profile/
 
 # Google Cloud credentials
-credentials/service_account_key.json
+credentials/*
+!credentials/.gitkeep
 
 # Folder with log files
 logs/
