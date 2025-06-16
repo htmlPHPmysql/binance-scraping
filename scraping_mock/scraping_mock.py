@@ -35,6 +35,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
+from functions.telegram_notifier import send_telegram_message
 from functions.logging_setup import (
     setup_logging,
     restore_stdout_stderr
@@ -73,12 +74,14 @@ from config import (
     SELECTOR_CLASSES,
     COPY_MANAGEMENT_SECTION_DIV_SELECTOR
 )
-from credential import (
+from credentials import (
         none # This line seems to be a placeholder, you can remove it if not needed in your actual credential.py
     ,   URL_LOGIN
     ,   URL_COPY_MANAGEMENT
     ,   BINANCE_USERNAME
     ,   BINANCE_PASSWORD
+    ,   TELEGRAM_BOT_TOKEN
+    ,   TELEGRAM_CHAT_ID
 )
 
 if __name__ == "__main__":
@@ -201,6 +204,9 @@ if __name__ == "__main__":
                     # Insert data into Google Sheet
                     write_to_google_sheet(current_time, trader_name, roi_value, sum_roi, worksheet)
                 
+                message = f"Total sum_roi {sum_roi}"
+                send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
+                
 
             except TimeoutException:
                 print(f"Timeout: No elements with selector '{COPY_MANAGEMENT_SECTION_DIV_SELECTOR}' found within {DATA_LOAD_TIMEOUT} seconds.")
@@ -217,7 +223,7 @@ if __name__ == "__main__":
         
         # driver.find_element(By.ID, "password").send_keys(BINANCE_PASSWORD) # This line is commented out and thus not executed
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred in the main script: {e}")
     finally:
         print("Скрипт завершено.")
         # if driver:

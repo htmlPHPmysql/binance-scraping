@@ -1,10 +1,9 @@
 import os
 import gspread
-
-# Google Sheets API Key
-# Шлях до вашого JSON-файлу сервісного акаунта
-# Важливо: Зберігайте цей файл у безпечному місці та додайте 'credentials/' до .gitignore
-GOOGLE_CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), 'credentials', 'service_account_key.json')
+from credentials import (
+        none # This line seems to be a placeholder, you can remove it if not needed in your actual credential.py
+    ,   GOOGLE_CREDENTIALS_FILE
+)
 
 def google_sheet_set_connection():
     """

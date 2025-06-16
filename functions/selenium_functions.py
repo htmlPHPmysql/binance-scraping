@@ -240,6 +240,10 @@ def add_random_delay(min_seconds, max_seconds):
     print("Delay finished")
 
 def human_like_send_keys(element, text):
+    if text is None:
+        error_message = f"Attempt to enter None value. Text: {text}"
+        raise Exception(error_message) 
+    
     for char in text:
         element.send_keys(char)
         time.sleep(random.uniform(0.05, 0.2)) # Delay between 50ms and 200ms per character
