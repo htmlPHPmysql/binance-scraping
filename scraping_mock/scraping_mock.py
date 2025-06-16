@@ -1,16 +1,32 @@
 
 
-import re
-# import psycopg2 # For PostgreSQL
 import os # Import module "os"
-import time
-import random # For random delays
-import logging # New import for logging
 import sys # New import for system-specific parameters and functions
 
 # Import undetected_chromedriver for enhanced stealth capabilities
 import undetected_chromedriver as uc # Import undetected_chromedriver as 'uc'
 
+# --- Налаштування шляху для імпортів у багатомодульному проекті ---
+# Отримуємо абсолютний шлях до директорії, де знаходиться поточний скрипт.
+current_script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Припускаємо, що коренева директорія проекту знаходиться на один рівень вище
+# від директорії, де розташований головний скрипт.
+# Наприклад, якщо scraping_mock.py знаходиться в C:\Binance_scraping\scraping_mock\,
+# тоді project_root_dir буде C:\Binance_scraping\.
+root_dir = os.path.dirname(current_script_dir)
+
+# Додаємо кореневу директорію проекту до sys.path.
+# Це дозволить Python знаходити модулі, розташовані в підпапках відносно кореня проекту.
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+import re
+import time
+import random # For random delays
+import logging # New import for logging
+# import psycopg2 # For PostgreSQL
+#    
 from datetime import datetime
 from selenium import webdriver # Keep this import for 'Options' if needed, though uc.ChromeOptions is preferred
 from selenium.webdriver.common.by import By
@@ -20,6 +36,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
+from functions_global.logging_setup import (
+    setup_logging,
+    restore_stdout_stderr
+)
 
 from selenium_functions import (
     undetected_chromedriver_add_argument,
@@ -62,57 +82,10 @@ from credential import (
     ,   BINANCE_PASSWORD
 )
 
-
-# --- Logging Setup ---
-LOG_DIR = os.path.join(os.path.dirname(__file__), 'logs')
-os.makedirs(LOG_DIR, exist_ok=True) # Ensure the logs directory exists
-
-LOG_FILE_PATH = os.path.join(LOG_DIR, 'mock_scraper.log')
-
-# Configure logging to output to a file and console
-logging.basicConfig(
-    level=logging.INFO, # Set the base logging level. Messages of INFO, WARNING, ERROR, CRITICAL will be processed.
-    format='%(asctime)s - %(levelname)s - %(message)s', # Format of log messages
-    handlers=[
-        logging.FileHandler(LOG_FILE_PATH, encoding='utf-8'), # Log to a file
-        logging.StreamHandler() # Log to the console
-    ]
-)
-logger = logging.getLogger(__name__) # Get a logger instance for this module
-
-# --- Redirect print() output to logger ---
-class LoggerWriter:
-    """
-    Custom file-like object to redirect sys.stdout and sys.stderr to the logger.
-    """
-    def __init__(self, logger, level):
-        self.logger = logger
-        self.level = level
-        self.buffer = ''
-
-    def write(self, message):
-        # Buffer messages until a newline is encountered
-        self.buffer += message
-        if '\n' in self.buffer:
-            lines = self.buffer.split('\n')
-            for line in lines[:-1]:
-                if line: # Avoid logging empty strings
-                    self.logger.log(self.level, line.rstrip()) # Log the line, removing trailing newline
-            self.buffer = lines[-1] # Keep the last (incomplete) line in buffer
-
-    def flush(self):
-        # Log any remaining content in the buffer when flush is called
-        if self.buffer:
-            self.logger.log(self.level, self.buffer.rstrip())
-            self.buffer = ''
-
-# Redirect stdout and stderr to the logger
-sys.stdout = LoggerWriter(logger, logging.INFO)
-sys.stderr = LoggerWriter(logger, logging.ERROR)
-# Note: After this redirection, all subsequent print() calls will go to the logger.
-# This means your existing print() statements will now be logged.
-
 if __name__ == "__main__":
+    logger = setup_logging() # Зберігаємо екземпляр логера
+    logger.info("Execution of the script is inizialized")
+
     # --- Code for Codespaces GitHub START (keep commented out as per your request) ---
     # chromedriver_path = "/usr/local/bin/chromedriver" # Шлях до завантаженого вами ChromeDriver
 
@@ -125,7 +98,7 @@ if __name__ == "__main__":
     # driver = webdriver.Chrome(service=service, options=chrome_options)
     # --- Code for Codespaces GitHub FINISH---
 
-    driver = undetected_chromedriver_add_argument(uc)
+    driver = undetected_chromedriver_add_argument(uc, root_dir)
     
     try:
         print(f"Navigating to page: {URL_COPY_MANAGEMENT}")
@@ -248,5 +221,9 @@ if __name__ == "__main__":
         print(f"An error occurred: {e}")
     finally:
         print("Скрипт завершено.")
+        # if driver:
+        #     driver.quit()            
+        #     print("Browser is closed")
+        restore_stdout_stderr() # Відновлюємо стандартні потоки виводу
         input("Натисніть Enter, щоб закрити...")
-        # driver.quit() # This line was commented out in your original code, meaning the browser might not close automatically
+       

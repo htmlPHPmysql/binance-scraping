@@ -245,7 +245,7 @@ def human_like_send_keys(element, text):
         time.sleep(random.uniform(0.05, 0.2)) # Delay between 50ms and 200ms per character
     print(f"({element}') entered value")
 
-def undetected_chromedriver_add_argument(uc):
+def undetected_chromedriver_add_argument(uc, aim_dir):
 
     # Configure options for undetected_chromedriver
     # uc.ChromeOptions is used instead of selenium.webdriver.ChromeOptions for better compatibility
@@ -285,8 +285,10 @@ def undetected_chromedriver_add_argument(uc):
     # chrome_options.add_argument("--incognito")
 
     # --- ДОДАЙТЕ ЦІ РЯДКИ ДЛЯ ЗБЕРЕЖЕННЯ ПРОФІЛЮ ---
+    # Create 'chrome_profile' folder in the root folder
+    profile_dir = os.path.join(aim_dir, "chrome_profile")
+    
     # Створіть директорію для профілю, якщо вона не існує
-    profile_dir = os.path.join(os.getcwd(), "chrome_profile") # Створити папку 'chrome_profile' у поточній робочій директорії
     if not os.path.exists(profile_dir):
         os.makedirs(profile_dir)
         print(f"Created Chrome profile directory: {profile_dir}")
