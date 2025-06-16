@@ -31,15 +31,17 @@ class LoggerWriter:
             self.logger.log(self.level, self.buffer.rstrip())
             self.buffer = ''
 
-def setup_logging():
+def setup_logging(aim_dir):
     """
     Налаштовує систему логування, створює папку для логів та перенаправляє
     stdout та stderr до логера. Цю функцію слід викликати один раз на початку головного скрипту.
     """
-    LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
-    os.makedirs(LOG_DIR, exist_ok=True) 
+    # LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    # LOG_DIR = os.path.join(aim_dir, 'logs')
+    # os.makedirs(LOG_DIR, exist_ok=True) 
 
-    LOG_FILE_PATH = os.path.join(LOG_DIR, 'mock_scraper.log')
+    # LOG_FILE_PATH = os.path.join(LOG_DIR, 'mock_scraper.log')
+    LOG_FILE_PATH = os.path.join(aim_dir, 'mock_scraper.log')
 
     # Конфігуруємо логування для виводу у файл та консоль
     logging.basicConfig(

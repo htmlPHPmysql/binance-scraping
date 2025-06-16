@@ -19,4 +19,4 @@ credentials/*
 
 # Folder with log files
 logs/
-# *.log
+*.log

@@ -27,7 +27,7 @@ from config_sql import (
     ,   trader_performance_table_columns
 ) # import variables form config_sql.py
 
-from sql_functions import (
+from functions.sql_functions import (
     # add_trader_data,
     get_db_connection,
     create_table,
@@ -37,7 +37,7 @@ from sql_functions import (
     db_close_connection
 ) # Import SQL functions
 
-from functions_api import (
+from functions.functions_api import (
     fetch_api_data_with_retries,
 ) # Import API functions
 

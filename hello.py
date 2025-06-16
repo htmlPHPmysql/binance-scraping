@@ -7,7 +7,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium_functions import (
+from functions.selenium_functions import (
     close_popup_if_exists, 
     uncheck_checkbox, 
     check_element_presence, 
@@ -16,7 +16,7 @@ from selenium_functions import (
     extract_trader_id,
     # get_trader_details
 )
-from sql_functions import (
+from functions.sql_functions import (
     # add_trader_data,
     get_db_connection,
     create_traders_table,

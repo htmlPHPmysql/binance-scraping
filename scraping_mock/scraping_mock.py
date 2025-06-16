@@ -6,8 +6,7 @@ import sys # New import for system-specific parameters and functions
 # Import undetected_chromedriver for enhanced stealth capabilities
 import undetected_chromedriver as uc # Import undetected_chromedriver as 'uc'
 
-# --- Налаштування шляху для імпортів у багатомодульному проекті ---
-# Отримуємо абсолютний шлях до директорії, де знаходиться поточний скрипт.
+# Take the absolute path of the base directory
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Припускаємо, що коренева директорія проекту знаходиться на один рівень вище
@@ -36,12 +35,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
-from functions_global.logging_setup import (
+from functions.logging_setup import (
     setup_logging,
     restore_stdout_stderr
 )
 
-from selenium_functions import (
+from functions.selenium_functions import (
     undetected_chromedriver_add_argument,
     check_presence_element,
     move_cursor,
@@ -50,11 +49,11 @@ from selenium_functions import (
     human_like_send_keys
 )
 
-from functions_extracting_data import (
+from functions.functions_extracting_data import (
     extract_trader_info
 )
 
-from functions_google_sheets import (
+from functions.functions_google_sheets import (
     google_sheet_set_connection,
     google_sheet_open_spreadsheet,
     google_sheet_open_worksheet,
@@ -83,7 +82,7 @@ from credential import (
 )
 
 if __name__ == "__main__":
-    logger = setup_logging() # Зберігаємо екземпляр логера
+    logger = setup_logging(current_script_dir) # Зберігаємо екземпляр логера
     logger.info("Execution of the script is inizialized")
 
     # --- Code for Codespaces GitHub START (keep commented out as per your request) ---
