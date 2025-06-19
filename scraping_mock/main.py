@@ -71,9 +71,18 @@ from config import (
     name_trader_class,
     loading_indicator_class,
     TRADER_CARD_CLASS,
-    SELECTOR_CLASSES,
-    COPY_MANAGEMENT_SECTION_DIV_SELECTOR
+    SELECTOR_CLASSES
 )
+
+from config_mock import (
+        none
+    ,   first_5
+    ,   last_5
+    ,   spreadsheet_name
+    ,   worksheet_name    
+    ,   COPY_MANAGEMENT_SECTION_DIV_SELECTOR
+)
+
 from credentials import (
         none # This line seems to be a placeholder, you can remove it if not needed in your actual credential.py
     ,   URL_LOGIN
@@ -180,16 +189,15 @@ if __name__ == "__main__":
                 print(f"Successfully found {len(copy_management_sections)} copy management section div(s).")
                 
                 google_connection = google_sheet_set_connection()
-
-                spreadsheet_name = "Binance mock"
+                
                 spreadsheet = google_sheet_open_spreadsheet(google_connection, spreadsheet_name)
-
-                worksheet_name = "2"
+                
                 worksheet = google_sheet_open_worksheet(spreadsheet, worksheet_name)
                 # Тепер 'copy_management_sections' є списком WebElement-ів,
                 # з якими ви можете працювати далі.
                 # Наприклад, вивести їхній текст або знайти в них інші елементи.
                 sum_roi = 0.0  # Initialize sum_roi
+                params_search = first_5
                 for i, section_div in enumerate(copy_management_sections):
 
                     # print(f"DEBUG: Type of section_div: {type(section_div)}") 
@@ -200,13 +208,27 @@ if __name__ == "__main__":
                     sum_roi += roi_value # Add ROI to sum_roi
 
                     current_time = datetime.now()
-        
+                    
                     # Insert data into Google Sheet
-                    write_to_google_sheet(current_time, trader_name, roi_value, sum_roi, worksheet)
+                    trader_data = {
+                        "Timestamp":    current_time,
+                        "SearchParams": params_search,
+                        "TraderName":   trader_name,
+                        "ROIValue":     roi_value,
+                        "ROIsum":       sum_roi
+                    }
+                    write_to_google_sheet(trader_data, worksheet)
+                    if i == 4:
+                        params_search = last_5
+                        # write_to_google_sheet(current_time, "", "", "", worksheet)
+                        message = f"Total sum_roi {sum_roi}"
+                        send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
+
+                        sum_roi = 0.0
                 
+                # write_to_google_sheet(current_time, "", "", "", worksheet)
                 message = f"Total sum_roi {sum_roi}"
-                send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
-                
+                send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)                
 
             except TimeoutException:
                 print(f"Timeout: No elements with selector '{COPY_MANAGEMENT_SECTION_DIV_SELECTOR}' found within {DATA_LOAD_TIMEOUT} seconds.")
@@ -225,7 +247,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An error occurred in the main script: {e}")
     finally:
-        print("Скрипт завершено.")
+        print("Script is completed")
         # if driver:
         #     driver.quit()            
         #     print("Browser is closed")

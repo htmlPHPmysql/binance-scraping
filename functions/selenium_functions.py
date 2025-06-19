@@ -4,6 +4,7 @@ import re
 import os
 import time
 import random # For random delays
+import logging
 # import psycopg2  # Для PostgreSQL
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -23,6 +24,9 @@ from config import (
     name_trader_class,
     loading_indicator_class
 )
+
+# Отримуємо логер, який вже налаштований у головному скрипті
+logger = logging.getLogger(__name__)
 
 def close_popup_if_exists(driver, popup_class_name, close_button_class_name):
     try:
@@ -217,7 +221,8 @@ def click_element(driver, by_type, selector, timeout):
         print(f"Action 'click' performed. ({by_type}='{selector}') clicked button")       
 
     except TimeoutException:
-        print(f"Error: ({by_type}='{selector}') is not interactable within {timeout} seconds.")
+        # print(f"Error: ({by_type}='{selector}') is not interactable within {timeout} seconds.")
+        logger.error(f"Error: ({by_type}='{selector}') is not interactable within {timeout} seconds.")
         return None
     except NoSuchElementException:
         print(f"Error: ({by_type}='{selector}') not found by selector '{selector}'.")

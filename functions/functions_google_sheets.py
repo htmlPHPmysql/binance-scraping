@@ -63,22 +63,28 @@ def google_sheet_open_worksheet(spreadsheet, sheet_name):
         print(f"Error accessing worksheet '{sheet_name}': {ws_e}")
         return # Exit the function on other worksheet errors
         
-def write_to_google_sheet(timestamp, trader_name, roi, sum_roi, worksheet):
+def write_to_google_sheet(data_row, worksheet):
     try: 
         
         # Додаємо заголовки, якщо таблиця порожня
         if worksheet.row_count == 0 or worksheet.cell(3, 1).value is None: # 
-            worksheet.insert_row(["Timestamp", "Trader name", "ROI, %", "Sum ROI"], 3)
+            worksheet.insert_row(["Timestamp", "Search params", "Trader name", "ROI, %", "Sum ROI"], 3)
         # else:
         #     print(f"Number of the rows: {worksheet.row_count}")
         #     print(f"Cell 3,1 is NOT empty: {worksheet.cell(3, 1).value}")
         
         # Додаємо новий рядок з даними
         # timestamp потрібно конвертувати у формат, зрозумілий Google Sheets (наприклад, ISO-формат)
-        worksheet.append_row([timestamp.isoformat(), trader_name, roi, sum_roi])
+        timestamp       = data_row.get("Timestamp")
+        params_search   = data_row.get("SearchParams")
+        trader_name     = data_row.get("TraderName")
+        roi_value       = data_row.get("ROIValue")
+        roi_sum         = data_row.get("ROIsum")
+
+        worksheet.append_row([timestamp.isoformat(), params_search, trader_name, roi_value, roi_sum])
         
-        print(f"Data added successfully in Google Sheet: {timestamp.strftime('%Y-%m-%d %H:%M:%S')} {trader_name}")
+        print(f"Data added successfully in Google Sheet: {trader_name}")
     except Exception as e:
-        print(f"Помилка при записі в Google Sheet: {e}")
+        print(f"Error during inserting in the Google Sheet: {e}")
 
 
