@@ -1,5 +1,16 @@
 import os
 import gspread
+from gspread_formatting import (
+    set_frozen,
+    format_cell_range, 
+    get_conditional_format_rules, 
+    ConditionalFormatRule, 
+    BooleanRule, 
+    CellFormat, 
+    Color, 
+    textFormat
+)
+
 from credentials import (
         none # This line seems to be a placeholder, you can remove it if not needed in your actual credential.py
     ,   GOOGLE_CREDENTIALS_FILE
@@ -28,7 +39,7 @@ def google_sheet_open_spreadsheet(gc, spreadsheet_name):
     Parameters:
         1. google connection
         2. Name of the spreadsheet
-    Returns google connection
+    Returns spreadsheet
     """
     try:
         spreadsheet = gc.open(spreadsheet_name)
@@ -42,7 +53,14 @@ def google_sheet_open_spreadsheet(gc, spreadsheet_name):
         return # Exit the function on other opening errors
     
 def google_sheet_open_worksheet(spreadsheet, sheet_name):
-    # Select the specific worksheet within the spreadsheet
+    """
+    Select the specific worksheet within the spreadsheet by its name, with a check for success
+    Parameters:
+        1. Name of the spreadsheet
+        2. Name of the worksheet
+    Returns worksheet
+    """
+    # 
     # Added a try-except for worksheet selection too
     try:
         worksheet = spreadsheet.worksheet(sheet_name)
@@ -64,11 +82,22 @@ def google_sheet_open_worksheet(spreadsheet, sheet_name):
         return # Exit the function on other worksheet errors
         
 def write_to_google_sheet(data_row, worksheet):
+    """
+    Create headers of the table if NO exist
+    Insert data in the cells
+    Parameters:
+        1. Dictionary of the data
+        2. Name of the worksheet
+    Returns worksheet
+    """
     try: 
         
         # Додаємо заголовки, якщо таблиця порожня
         if worksheet.row_count == 0 or worksheet.cell(3, 1).value is None: # 
             worksheet.insert_row(["Timestamp", "Search params", "Trader name", "ROI, %", "Sum ROI"], 3)
+            print("Headers added")
+            # Заморожуємо перший рядок після додавання заголовків
+            set_frozen(worksheet, rows=[1, 2, 3])
         # else:
         #     print(f"Number of the rows: {worksheet.row_count}")
         #     print(f"Cell 3,1 is NOT empty: {worksheet.cell(3, 1).value}")
@@ -87,4 +116,57 @@ def write_to_google_sheet(data_row, worksheet):
     except Exception as e:
         print(f"Error during inserting in the Google Sheet: {e}")
 
+def set_cell_color(worksheet, name_collomn, data):
+    """
+    Coloring cells
+    Parameters:
+        1. Name of the worksheet
+        2. Collomn for coloring
+        3. Data for choosing witch color
+    Returns worksheet
+    """
+    try: 
+        # Getting number of the row
+        new_row_index = worksheet.row_count
+        
+        # Форматування комірки ROI на основі її значення
+        if data is not None:
+            # Визначаємо колір: зелений для позитивного ROI, червоний для негативного
+            if data > 0:
+                background_color = Color(0, 1, 0) # Зелений (RGB: 0-1)
+            elif data < 0:
+                background_color = Color(1, 0, 0) # Червоний (RGB: 0-1)
+            else:
+                background_color = Color(0.8, 0.8, 0.8) # Сірий для 0 (RGB: 0-1)
+            
+            # Створюємо формат комірки
+            cell_format = CellFormat(
+                backgroundColor=background_color,
+                textFormat=textFormat(bold=True) # Додатково робимо текст жирним
+            )
+            
+            # Застосовуємо форматування до комірки ROI (стовпець 3)
+            range_to_format = f"{name_collomn}{new_row_index}" # Наприклад, C2, C3, C4...
+            format_cell_range(worksheet, range_to_format, cell_format)
+    except Exception as e:
+        print(f"Error during coloring cell in the Google Sheet: {e}")
 
+def set_default_cell_color(worksheet):
+    """
+    Set default sell color
+    Parameters:
+        1. Name of the worksheet
+    Returns none
+    """
+    try:
+        
+        # Getting number of the row
+        new_row_index = worksheet.row_count
+        # Спочатку встановлюємо стандартний (наприклад, білий) фон для комірки ROI
+        default_background_color = Color(1, 1, 1) # Білий колір
+        default_cell_format = CellFormat(backgroundColor=default_background_color)
+        range_to_format = f"A{new_row_index}:AA{new_row_index}"
+        format_cell_range(worksheet, range_to_format, default_cell_format)
+        # print(f"Debug: Cells ({range_to_format}) setted to default background")
+    except Exception as e:
+        print(f"Error during coloring cell in the Google Sheet: {e}")

@@ -58,7 +58,9 @@ from functions.functions_google_sheets import (
     google_sheet_set_connection,
     google_sheet_open_spreadsheet,
     google_sheet_open_worksheet,
-    write_to_google_sheet
+    write_to_google_sheet,
+    set_default_cell_color,
+    set_cell_color
 )
 
 from config import (
@@ -218,15 +220,19 @@ if __name__ == "__main__":
                         "ROIsum":       sum_roi
                     }
                     write_to_google_sheet(trader_data, worksheet)
+                    set_default_cell_color(worksheet)                    
+                    set_cell_color(worksheet, "D", roi_value)
+                    
                     if i == 4:
                         params_search = last_5
-                        # write_to_google_sheet(current_time, "", "", "", worksheet)
+                        set_cell_color(worksheet, "E", sum_roi)
                         message = f"Total sum_roi {sum_roi}"
                         send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
 
                         sum_roi = 0.0
                 
-                # write_to_google_sheet(current_time, "", "", "", worksheet)
+                
+                set_cell_color(worksheet, "E", sum_roi)
                 message = f"Total sum_roi {sum_roi}"
                 send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)                
 

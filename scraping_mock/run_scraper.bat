@@ -7,7 +7,7 @@ REM Activate the virtual environment
 call "C:\Users\User\my_google_binance_env\Scripts\activate.bat"
 
 REM Run your Python script
-python scraping_mock.py
+python main.py
 
 REM Deactivate the virtual environment (optional but good practice)
 deactivate

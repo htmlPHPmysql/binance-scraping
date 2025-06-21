@@ -295,7 +295,7 @@ def undetected_chromedriver_add_argument(uc, aim_dir):
 
     # --- ДОДАЙТЕ ЦІ РЯДКИ ДЛЯ ЗБЕРЕЖЕННЯ ПРОФІЛЮ ---
     # Create 'chrome_profile' folder in the root folder
-    profile_dir = os.path.join(aim_dir, "chrome_profile")
+    profile_dir = os.path.join(aim_dir, "chrome_profile_del_when_session_not_created_cannot_connect_to_chrome")
     
     # Створіть директорію для профілю, якщо вона не існує
     if not os.path.exists(profile_dir):
