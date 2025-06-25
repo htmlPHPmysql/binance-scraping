@@ -47,7 +47,8 @@ from functions.selenium_functions import (
     move_cursor,
     click_element,
     add_random_delay,
-    human_like_send_keys
+    human_like_send_keys,
+    move_cursor_delay_click
 )
 
 from functions.functions_extracting_data import (
@@ -60,7 +61,8 @@ from functions.functions_google_sheets import (
     google_sheet_open_worksheet,
     write_to_google_sheet,
     set_default_cell_color,
-    set_cell_color
+    set_cell_color,
+    get_last_data_row_index
 )
 
 from config import (
@@ -83,6 +85,7 @@ from config_mock import (
     ,   spreadsheet_name
     ,   worksheet_name    
     ,   COPY_MANAGEMENT_SECTION_DIV_SELECTOR
+    ,   SELECTORS
 )
 
 from credentials import (
@@ -142,43 +145,53 @@ if __name__ == "__main__":
         if redirect_occurred and URL_LOGIN in current_final_url:
 
             print("Redirected to login page. Proceeding with login process...")
+            
             # Wait for login field to be present (adjust selectors as needed)
-            username_field = check_presence_element(driver, By.NAME, "username", DATA_LOAD_TIMEOUT)
+            username_field = check_presence_element(
+                driver, 
+                SELECTORS["input_name"]["selector_type"], 
+                SELECTORS["input_name"]["selector_name"], 
+                DATA_LOAD_TIMEOUT
+            )
 
             # Inserting username
             human_like_send_keys(username_field, BINANCE_USERNAME)
             # Add random_delay because without this we have message from binance like this:
             # [Cloudflare Turnstile] Invalid input for optional parameter "cData", got "null".
             add_random_delay(delay_sec_min, delay_sec_max)
-
-            # Move the cursor over the element
-            move_cursor(driver, By.CLASS_NAME, 'bn-button__primary', DATA_LOAD_TIMEOUT)
-            add_random_delay(delay_sec_min, delay_sec_max)
-
-            # Click the button
-            click_element(driver, By.CLASS_NAME, 'bn-button__primary', DATA_LOAD_TIMEOUT)
+            move_cursor_delay_click(
+                driver,
+                SELECTORS["next_button"]["selector_type"],
+                SELECTORS["next_button"]["selector_name"]
+            )
 
             # Wait for password field to be present (adjust selectors as needed)
-            password_field = check_presence_element(driver, By.ID, "password-input", DATA_LOAD_TIMEOUT)
+            password_field = check_presence_element(
+                driver, 
+                SELECTORS["input_pass"]["selector_type"],
+                SELECTORS["input_pass"]["selector_name"], 
+                DATA_LOAD_TIMEOUT
+            )
 
             # Inserting password
             human_like_send_keys(password_field, BINANCE_PASSWORD)
             add_random_delay(delay_sec_min, delay_sec_max)
-
-            # Move the cursor over the element
-            move_cursor(driver, By.CLASS_NAME, 'bn-button__primary', DATA_LOAD_TIMEOUT)
-            add_random_delay(delay_sec_min, delay_sec_max)
-
-            # Click the login button or any "Next" button using its aria-label
-            click_element(driver, By.CLASS_NAME, 'bn-button__primary', DATA_LOAD_TIMEOUT)
+            move_cursor_delay_click(
+                driver,
+                SELECTORS["next_button"]["selector_type"],
+                SELECTORS["next_button"]["selector_name"]
+            )
+            
 
         elif not redirect_occurred and URL_COPY_MANAGEMENT in current_final_url:
             print("No redirect detected and confirmed on target page. Proceeding with data extraction.")
 
             print("Attempting to click the 'Mock Copy Trading' tab (id='bn-tab-Copy')...")
-            move_cursor(driver, By.ID, 'bn-tab-Copy', DATA_LOAD_TIMEOUT)
-            add_random_delay(delay_sec_min, delay_sec_max)
-            click_element(driver, By.ID, "bn-tab-Copy", DATA_LOAD_TIMEOUT)
+            move_cursor_delay_click(
+                driver,
+                SELECTORS["tab_mock"]["selector_type"],
+                SELECTORS["tab_mock"]["selector_name"]
+            )
 
             print(f"Attempting to find elements with selector: {COPY_MANAGEMENT_SECTION_DIV_SELECTOR}")
             try:
@@ -220,19 +233,27 @@ if __name__ == "__main__":
                         "ROIsum":       sum_roi
                     }
                     write_to_google_sheet(trader_data, worksheet)
-                    set_default_cell_color(worksheet)                    
-                    set_cell_color(worksheet, "D", roi_value)
-                    
+                    # current_row_index = get_last_data_row_index(worksheet)
+                    # set_default_cell_color(worksheet, current_row_index) # Can reach API limits                   
+                                        
                     if i == 4:
                         params_search = last_5
-                        set_cell_color(worksheet, "E", sum_roi)
+
+                        # if roi_value > 0:
+                        #     set_cell_color(worksheet, current_row_index, "E", "#90EE90")
+                        # elif roi_value < 0:
+                        #     set_cell_color(worksheet, current_row_index, "E", "#FF6666")  
+
                         message = f"Total sum_roi {sum_roi}"
                         send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
 
                         sum_roi = 0.0
                 
-                
-                set_cell_color(worksheet, "E", sum_roi)
+                # if roi_value > 0:
+                #     set_cell_color(worksheet, current_row_index, "E", "#90EE90")
+                # elif roi_value < 0:
+                #     set_cell_color(worksheet, current_row_index, "E", "#FF6666")
+
                 message = f"Total sum_roi {sum_roi}"
                 send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)                
 
