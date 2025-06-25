@@ -7,7 +7,7 @@ __pycache__/
 my_google_binance_env/
 
 # Python virtual environment
-venv/
+venv_binance/
 
 # Ignore browser profile directories created by undetected-chromedriver
 .uc/

@@ -14,15 +14,26 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, StaleElementReferenceException
 
 from config import (
-    URL,
     DATA_LOAD_TIMEOUT,
     OUTPUT_FILENAME,
-    popup_class,
-    close_button_class,
+    delay_sec_min,
+    delay_sec_max,
     checkbox_selector,
     pages_selector,
     name_trader_class,
-    loading_indicator_class
+    loading_indicator_class,
+    TRADER_CARD_CLASS,
+    SELECTOR_CLASSES
+)
+
+from scraping_mock.config_mock import (
+        none
+    ,   first_5
+    ,   last_5
+    ,   spreadsheet_name
+    ,   worksheet_name    
+    ,   COPY_MANAGEMENT_SECTION_DIV_SELECTOR
+    ,   SELECTORS
 )
 
 # Отримуємо логер, який вже налаштований у головному скрипті
@@ -242,7 +253,6 @@ def add_random_delay(min_seconds, max_seconds):
     random_delay = random.uniform(min_seconds, max_seconds)
     print(f"Adding a programmatic delay of {random_delay:.2f} seconds...")
     time.sleep(random_delay)
-    print("Delay finished")
 
 def human_like_send_keys(element, text):
     if text is None:
@@ -253,6 +263,102 @@ def human_like_send_keys(element, text):
         element.send_keys(char)
         time.sleep(random.uniform(0.05, 0.2)) # Delay between 50ms and 200ms per character
     print(f"({element}') entered value")
+
+def move_cursor_delay_click(driver, selector_type, selector_name):
+    """
+    Execute 3 moves:
+    1) move to the cursor
+    2) add random delay
+    3) click defined element
+    
+    Args:
+        driver (webdriver.Chrome): The Selenium WebDriver instance.
+        selector_type (By): The By strategy (e.g., By.NAME, By.ID, By.CSS_SELECTOR).
+        selector_name (str): The selector string for the element.
+    Returns:
+        None
+    """
+    # Move the cursor over the element
+    move_cursor(
+        driver,
+        selector_type,
+        selector_name, 
+        DATA_LOAD_TIMEOUT
+    )
+    add_random_delay(delay_sec_min, delay_sec_max)
+
+    # Click the login button or any "Next" button using its aria-label
+    click_element(
+        driver,
+        selector_type,
+        selector_name,  
+        DATA_LOAD_TIMEOUT
+    )
+
+# def perform_login_sequence(driver):
+#     """
+#     Виконує повну послідовність входу в систему Binance.
+#     Очікується, що драйвер знаходиться на сторінці входу Binance.
+#     """
+#     # Wait for login field to be present (adjust selectors as needed)
+#     username_field = check_presence_element(
+#         driver, 
+#         SELECTORS["input_name"]["selector_type"], 
+#         SELECTORS["input_name"]["selector_name"], 
+#         DATA_LOAD_TIMEOUT
+#     )
+
+#     # Inserting username
+#     human_like_send_keys(username_field, BINANCE_USERNAME)
+#     # Add random_delay because without this we have message from binance like this:
+#     # [Cloudflare Turnstile] Invalid input for optional parameter "cData", got "null".
+#     add_random_delay(delay_sec_min, delay_sec_max)
+
+#     # Move the cursor over the element
+#     move_cursor(
+#         driver, 
+#         SELECTORS["next_button"]["selector_type"],
+#         SELECTORS["next_button"]["selector_name"], 
+#         DATA_LOAD_TIMEOUT
+#     )
+#     add_random_delay(delay_sec_min, delay_sec_max)
+
+#     # Click the button
+#     click_element(
+#         driver,
+#         SELECTORS["next_button"]["selector_type"],
+#         SELECTORS["next_button"]["selector_name"], 
+#         DATA_LOAD_TIMEOUT
+#     )
+
+#     # Wait for password field to be present (adjust selectors as needed)
+#     password_field = check_presence_element(
+#         driver, 
+#         SELECTORS["input_pass"]["selector_type"],
+#         SELECTORS["input_pass"]["selector_name"], 
+#         DATA_LOAD_TIMEOUT
+#     )
+
+#     # Inserting password
+#     human_like_send_keys(password_field, BINANCE_PASSWORD)
+#     add_random_delay(delay_sec_min, delay_sec_max)
+
+#     # Move the cursor over the element
+#     move_cursor(
+#         driver,
+#         SELECTORS["next_button"]["selector_type"],
+#         SELECTORS["next_button"]["selector_name"], 
+#         DATA_LOAD_TIMEOUT
+#     )
+#     add_random_delay(delay_sec_min, delay_sec_max)
+
+#     # Click the login button or any "Next" button using its aria-label
+#     click_element(
+#         driver,
+#         SELECTORS["next_button"]["selector_type"],
+#         SELECTORS["next_button"]["selector_name"],  
+#         DATA_LOAD_TIMEOUT
+#     )
 
 def undetected_chromedriver_add_argument(uc, aim_dir):
 

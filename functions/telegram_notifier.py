@@ -35,7 +35,7 @@ def send_telegram_message(bot_token, chat_id, message_text):
         response.raise_for_status() # Викличе виняток для кодів стану HTTP 4xx/5xx
         json_response = response.json()
         if json_response.get("ok"):
-            logger.info("Telegram message seng successfully")
+            logger.info("Telegram message send successfully")
             return True
         else:
             logger.error(f"Помилка надсилання Telegram повідомлення: {json_response.get('description', 'Невідома помилка')}")

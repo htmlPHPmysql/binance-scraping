@@ -1,14 +1,20 @@
 import os
 import gspread
+import gspread_formatting
+# print(dir(gspread))
+# print(f"Contents of gspread.utils: {dir(gspread.utils)}")
+# print(f"Contents of gspread_formatting.util: {dir(gspread_formatting.util)}")
 from gspread_formatting import (
     set_frozen,
     format_cell_range, 
-    get_conditional_format_rules, 
+    get_conditional_format_rules,
     ConditionalFormatRule, 
     BooleanRule, 
     CellFormat, 
     Color, 
-    textFormat
+    textFormat,
+    GridRange,
+    BooleanCondition
 )
 
 from credentials import (
@@ -73,6 +79,31 @@ def google_sheet_open_worksheet(spreadsheet, sheet_name):
             # We'll initialize it with 1 row and 3 columns, suitable for headers.
             worksheet = spreadsheet.add_worksheet(sheet_name, rows=3, cols=4)
             print(f"Successfully created new worksheet: '{sheet_name}'.")
+
+            worksheet.insert_row(["Timestamp", "Search params", "Trader name", "ROI, %", "Sum ROI"], 3)
+            set_cell_color(worksheet, "3", "A:E", "#f5f5dc")
+            print("Headers added")
+            
+            set_frozen(worksheet, rows=3)
+            
+            # --- NEW: Apply Conditional Formatting Rules ---
+            rules = get_conditional_format_rules(worksheet)
+            rules.clear() # Clear all existing rules to avoid duplication on re-runs
+
+            # --- NEW RULE: Every fifth row in column E (e.g., light blue background) ---
+            red_format = CellFormat(backgroundColor=Color(1, 0, 0))
+            rules.append(ConditionalFormatRule(
+                ranges=[GridRange.from_a1_range('E:E', worksheet)], # Apply to the entire column E
+                booleanRule=BooleanRule(
+                    
+                    condition=BooleanCondition('CUSTOM_FORMULA', ['=AND(E1<0; ROW()>=8; MOD(ROW()-3; 5)=0)']), # Condition: row number is a multiple of 5
+                    # condition=BooleanCondition('CUSTOM_FORMULA', ['=MOD(ROW(), 5)=0']), # does not functione because of localization
+                    format=red_format
+                )
+            ))
+            rules.save()
+            # print(f"rules: {rules}")
+
             return worksheet
         except Exception as create_e:
             print(f"Error creating new worksheet '{sheet_name}': {create_e}")
@@ -91,13 +122,11 @@ def write_to_google_sheet(data_row, worksheet):
     Returns worksheet
     """
     try: 
-        
-        # Додаємо заголовки, якщо таблиця порожня
-        if worksheet.row_count == 0 or worksheet.cell(3, 1).value is None: # 
-            worksheet.insert_row(["Timestamp", "Search params", "Trader name", "ROI, %", "Sum ROI"], 3)
-            print("Headers added")
-            # Заморожуємо перший рядок після додавання заголовків
-            set_frozen(worksheet, rows=[1, 2, 3])
+        # --- DEBUGGING: Print gspread version ---
+        # print(f"Using gspread version: {gspread.__version__}")
+        # print(f"gspread loaded from: {gspread.__file__}")
+        # --- END DEBUGGING ---
+
         # else:
         #     print(f"Number of the rows: {worksheet.row_count}")
         #     print(f"Cell 3,1 is NOT empty: {worksheet.cell(3, 1).value}")
@@ -112,46 +141,50 @@ def write_to_google_sheet(data_row, worksheet):
 
         worksheet.append_row([timestamp.isoformat(), params_search, trader_name, roi_value, roi_sum])
         
-        print(f"Data added successfully in Google Sheet: {trader_name}")
+        print(f"Data added successfully in Google Sheet: {trader_name} : {roi_value}")
     except Exception as e:
         print(f"Error during inserting in the Google Sheet: {e}")
 
-def set_cell_color(worksheet, name_collomn, data):
+def hex_to_rgb_normalized(hex_color):
+    """
+    Converts a hexadecimal color code (e.g., "#RRGGBB") to a tuple of normalized RGB values (0.0-1.0)
+    Parameters:
+        1. hex_color color in hex format    
+    Returns tuple
+    """
+    hex_color = hex_color.lstrip('#')
+    lv = len(hex_color)
+    rgb = tuple(int(hex_color[i:i + lv // 3], 16) for i in range(0, lv, lv // 3))
+    return tuple(c / 255.0 for c in rgb)
+
+def set_cell_color(worksheet, row_index, name_collomn, color_hex):
     """
     Coloring cells
     Parameters:
         1. Name of the worksheet
-        2. Collomn for coloring
-        3. Data for choosing witch color
-    Returns worksheet
+        2. Number of the row for coloring
+        3. Collomn for coloring
+        4. Data for choosing witch color
+    Returns None
     """
     try: 
         # Getting number of the row
-        new_row_index = worksheet.row_count
+        # current_row_index = worksheet.row_count
+        # print(f"current_row_index befor coloring cell: {current_row_index}")
+        background_color = Color(*hex_to_rgb_normalized(color_hex))
         
-        # Форматування комірки ROI на основі її значення
-        if data is not None:
-            # Визначаємо колір: зелений для позитивного ROI, червоний для негативного
-            if data > 0:
-                background_color = Color(0, 1, 0) # Зелений (RGB: 0-1)
-            elif data < 0:
-                background_color = Color(1, 0, 0) # Червоний (RGB: 0-1)
-            else:
-                background_color = Color(0.8, 0.8, 0.8) # Сірий для 0 (RGB: 0-1)
-            
-            # Створюємо формат комірки
-            cell_format = CellFormat(
-                backgroundColor=background_color,
-                textFormat=textFormat(bold=True) # Додатково робимо текст жирним
-            )
-            
-            # Застосовуємо форматування до комірки ROI (стовпець 3)
-            range_to_format = f"{name_collomn}{new_row_index}" # Наприклад, C2, C3, C4...
-            format_cell_range(worksheet, range_to_format, cell_format)
+        # Створюємо формат комірки
+        cell_format = CellFormat(
+            backgroundColor=background_color,
+            textFormat=textFormat(bold=True) # Додатково робимо текст жирним
+        )
+        # Застосовуємо форматування до комірки ROI (стовпець 3)
+        range_to_format = f"{name_collomn}{row_index}" # Наприклад, C2, C3, C4...
+        format_cell_range(worksheet, range_to_format, cell_format)
     except Exception as e:
         print(f"Error during coloring cell in the Google Sheet: {e}")
 
-def set_default_cell_color(worksheet):
+def set_default_cell_color(worksheet, row_index):
     """
     Set default sell color
     Parameters:
@@ -161,12 +194,24 @@ def set_default_cell_color(worksheet):
     try:
         
         # Getting number of the row
-        new_row_index = worksheet.row_count
+        new_row_index = row_index
+        new_col_index = worksheet.col_count
         # Спочатку встановлюємо стандартний (наприклад, білий) фон для комірки ROI
         default_background_color = Color(1, 1, 1) # Білий колір
         default_cell_format = CellFormat(backgroundColor=default_background_color)
-        range_to_format = f"A{new_row_index}:AA{new_row_index}"
+        range_to_format = f"A{new_row_index}:{new_col_index}{new_row_index}"
         format_cell_range(worksheet, range_to_format, default_cell_format)
         # print(f"Debug: Cells ({range_to_format}) setted to default background")
     except Exception as e:
         print(f"Error during coloring cell in the Google Sheet: {e}")
+
+def get_last_data_row_index(worksheet):
+    """
+    Отримує індекс останнього рядка, який містить будь-які непорожні дані.
+    Повертає 0, якщо аркуш повністю порожній.
+    """
+    all_values = worksheet.get_all_values() # Отримує всі значення з аркуша
+    for i in range(len(all_values) - 1, -1, -1): # Ітерує по рядках, починаючи з останнього
+        if any(cell.strip() for cell in all_values[i]): # Перевіряє, чи є в рядку хоча б одна непорожня комірка (після видалення пробілів)
+            return i + 1 # Повертає 1-базований індекс рядка
+    return 0 # Якщо всі рядки порожні, повертає 0 (для порожнього аркуша)
