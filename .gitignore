@@ -1,0 +1,22 @@
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+
+
+# Ignore virtual environment
+my_google_binance_env/
+
+# Python virtual environment
+venv_binance/
+
+# Ignore browser profile directories created by undetected-chromedriver
+.uc/
+chrome_profile_del_when_session_not_created_cannot_connect_to_chrome/
+
+# Google Cloud credentials
+credentials/*
+!credentials/.gitkeep
+
+# Folder with log files
+logs/
+*.log

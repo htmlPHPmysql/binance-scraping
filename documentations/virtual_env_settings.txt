@@ -1,0 +1,6 @@
+After instalation and activation of the virtual env execute commands in cmd:
+
+pip install undetected-chromedriver
+коли ви встановлюєте undetected-chromedriver за допомогою pip, selenium буде встановлений автоматично як його залежність (або оновлений до сумісної версії, якщо він уже встановлений)
+pip install setuptools
+pip install gspread
